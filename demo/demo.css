@@ -1,0 +1,22 @@
+.demo-bar {
+  position: sticky; top: 0; z-index: 40; /* under sheets and dialogs (50+) */
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--surface); color: var(--text);
+  border-bottom: 1px solid var(--line);
+  font: 500 14px/1.2 system-ui, sans-serif;
+}
+.demo-tag { font-weight: 700; letter-spacing: 0.02em; }
+.demo-grow { flex: 1; }
+.demo-seg { display: inline-flex; border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 999px; overflow: hidden; }
+.demo-seg button { border: 0; background: transparent; color: inherit; padding: 6px 14px; font: inherit; cursor: pointer; }
+.demo-seg button[aria-selected="true"] { background: var(--brand); color: #fff; }
+.demo-bar select, .demo-reset {
+  font: inherit; color: inherit; background: transparent;
+  border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+}
+.demo-app { position: relative; }
+.demo-app.phone { max-width: 440px; margin: 0 auto; }
+/* Keep the coach side nav below the demo bar. */
+.demo-bar { height: 48px; flex-wrap: nowrap; }
+.demo-app .sidenav { top: 48px; height: calc(100dvh - 48px); }
