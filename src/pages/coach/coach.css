@@ -47,6 +47,7 @@
   .status-tile .v { font-size: 28px; }
   .status-tile .l { font-size: 14px; line-height: 1.25; }
   .status-tile .h { display: none; }
+  .status-tile .v { grid-row: auto; }
   .hide-narrow { display: none; }
   .show-narrow { display: grid; }
   .coach-main h1 { font-size: 26px; }
