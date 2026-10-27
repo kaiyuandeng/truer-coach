@@ -11,7 +11,8 @@
   --brand-soft: #ecebff;
   --accent: #12b5a0;
   --accent-soft: #dff6f2;
-  --warn: #e8890c;
+  --warn: #d97b06;
+  --warn-soft: #fff1db;
   --danger: #e0445a;
   --danger-soft: #fde8eb;
   --shadow: 0 1px 2px rgb(20 20 40 / 4%), 0 4px 16px rgb(20 20 40 / 6%);
@@ -38,6 +39,8 @@
     --accent: #2fd1bb;
     --accent-soft: #123430;
     --danger-soft: #3a1a20;
+    --warn: #ffb547;
+    --warn-soft: #3a2a10;
     --shadow: 0 1px 2px rgb(0 0 0 / 30%);
     color-scheme: dark;
   }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useApi } from "../hooks";
 import { Spinner } from "../components/ui";
@@ -157,5 +157,16 @@ export function Join({ onDone }: { onDone: () => void }) {
         )}
       </form>
     </div>
+  );
+}
+
+/** Signed-out routes; loaded as their own chunk. */
+export default function AuthRoutes({ onDone }: { onDone: () => void }) {
+  return (
+    <Routes>
+      <Route path="/signup" element={<Signup onDone={onDone} />} />
+      <Route path="/join/:code" element={<Join onDone={onDone} />} />
+      <Route path="*" element={<Login onDone={onDone} />} />
+    </Routes>
   );
 }

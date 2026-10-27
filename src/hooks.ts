@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 
-/** Fetches a GET endpoint and exposes reload; keeps old data visible while reloading. */
+/** Last response per GET path, so revisiting a page paints instantly while it refreshes. */
+const cache = new Map<string, unknown>();
+
+/** Fetches a GET endpoint and exposes reload; keeps old (or cached) data visible while reloading. */
 export function useApi<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setDataState] = useState<T | null>(() => (path ? ((cache.get(path) as T) ?? null) : null));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(!!path);
   const latest = useRef(path);
@@ -14,8 +17,9 @@ export function useApi<T>(path: string | null) {
     setLoading(true);
     try {
       const d = await api.get<T>(path);
+      cache.set(path, d);
       if (latest.current === path) {
-        setData(d);
+        setDataState(d);
         setError(null);
       }
     } catch (e) {
@@ -25,9 +29,21 @@ export function useApi<T>(path: string | null) {
     }
   }, [path]);
 
+  // Optimistic edits update the cache too, so going back to a page doesn't flash stale values.
+  const setData = useCallback(
+    (next: T | null | ((cur: T | null) => T | null)) =>
+      setDataState((cur) => {
+        const v = typeof next === "function" ? (next as (c: T | null) => T | null)(cur) : next;
+        if (path) v === null ? cache.delete(path) : cache.set(path, v);
+        return v;
+      }),
+    [path],
+  );
+
   useEffect(() => {
+    if (path) setDataState((cache.get(path) as T) ?? null);
     load();
-  }, [load]);
+  }, [load, path]);
 
   return { data, setData, error, loading, reload: load };
 }

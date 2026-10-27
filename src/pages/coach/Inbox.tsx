@@ -43,7 +43,7 @@ export function Kpis({ rows }: { rows: CrmRow[] | null }) {
 
 /** The coach's daily queue: every comment, message and fresh completion that hasn't had a reply. */
 export function Inbox() {
-  const { me, refreshUnread } = useSession();
+  const { refreshUnread } = useSession();
   const inbox = useApi<InboxItem[]>("/inbox");
   const crm = useApi<CrmRow[]>("/crm");
   useOnFocus(inbox.reload);
@@ -53,10 +53,12 @@ export function Inbox() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 4 }}>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {me.name.split(" ")[0]}</h1>
-      <div className="muted" style={{ marginBottom: 20 }}>
-        {inbox.data ? `${inbox.data.length} thing${inbox.data.length === 1 ? "" : "s"} waiting on you` : " "}
-      </div>
+      <header className="page-head">
+        <div>
+          <h1>Inbox</h1>
+          <p className="page-sub">{inbox.data ? (inbox.data.length ? `${inbox.data.length} thing${inbox.data.length === 1 ? "" : "s"} waiting on you` : "You're all caught up") : "\u00a0"}</p>
+        </div>
+      </header>
       <Kpis rows={crm.data} />
 
       <div className="grid inbox-grid">
