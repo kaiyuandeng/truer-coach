@@ -44,3 +44,7 @@ npm run deploy         # builds, applies D1 migrations, deploys the Worker
 The D1 database (`pt-coach`) and KV namespace (`pt-coach-media`) already exist; their ids are in `wrangler.jsonc`.
 
 Photos and videos go to KV (up to 95 MB per file, stored in 20 MB chunks). R2 is used instead when an R2 bucket is bound as `MEDIA`, which needs a card on file.
+
+## Demo build (no backend)
+
+`npm run build:demo` writes `demo/dist/index.html`, one self-contained file with the whole app. The real worker runs inside the page on SQLite compiled to WebAssembly (sql.js) with the same migrations and seeded demo data as `/demo/coach`, so every screen and every change works with no server. A bar at the top switches between the coach view and each demo client, and "Reset data" reseeds. Uploads are kept in memory, and everything resets when the page reloads.
