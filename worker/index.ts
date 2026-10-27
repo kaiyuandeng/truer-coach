@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./util";
 import { headMedia, maxUpload, putMedia, readMedia } from "./media";
+import { overview } from "./overview";
 import { DEMO_COACH_ID, DEMO_PATIENT_ID, demoSql, demoWipeSql } from "./demo";
 import { addDays, fail, id, inviteCode, isDate, painScore, str } from "./util";
 import {
@@ -1052,6 +1053,8 @@ export function scoreClient(r: Record<string, number | string | null>, t: string
   const churn_risk = r.stage !== "active" ? null : reasons.length >= 2 || (daysQuiet ?? 99) >= 10 ? "high" : reasons.length === 1 ? "medium" : "low";
   return { engagement, adherence_14d: adherence, days_quiet: daysQuiet, churn_risk, risk_reasons: reasons };
 }
+
+app.route("/", overview);
 
 // ---------- Coach inbox ----------
 

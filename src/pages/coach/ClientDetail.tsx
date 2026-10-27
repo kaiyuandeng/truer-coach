@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, type WorkoutSummary } from "../../api";
 import { useApi, useOnFocus } from "../../hooks";
-import { addDays, monthLabel, parseYmd, startOfMonth, startOfWeek, ymd } from "../../dates";
+import { addDays, monthLabel, parseYmd, relTime, startOfMonth, startOfWeek, ymd } from "../../dates";
 import { Icon } from "../../components/Icon";
 import { Sheet, Spinner, toast } from "../../components/ui";
 import { Chat } from "../../components/Chat";
 import { ProgressView } from "../../components/ProgressView";
-import { InviteShare, STAGES, type Stage } from "./Clients";
+import { InviteShare, STAGES, type CrmRow, type Stage } from "./Clients";
+import { EngagementRing } from "./Overview";
 import { WeekBoard } from "./WeekBoard";
 
 type PatientInfo = {
@@ -35,24 +36,43 @@ export function ClientDetail() {
   const [params, setParams] = useSearchParams();
   const tab = (TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "board";
   const { data: p, reload } = useApi<PatientInfo>(`/patients/${id}`);
+  // The client list is usually cached already, so the header paints before the full record arrives.
+  const crm = useApi<CrmRow[]>("/crm");
+  const row = crm.data?.find((r) => r.id === id);
+  const head = p ?? row;
   const [inviting, setInviting] = useState(false);
 
-  if (!p) return <Spinner />;
+  if (!head) return <Spinner />;
   return (
-    <div>
+    <div className="client-detail">
       <Link to="/clients" className="row small" style={{ gap: 4, marginBottom: 8 }}>
         <Icon name="back" size={16} /> Clients
       </Link>
       <div className="row between" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <div>
           <div className="row" style={{ gap: 10 }}>
-            <h1>{p.name}</h1>
-            <span className="chip brand">{STAGES.find((s) => s.id === p.stage)?.label}</span>
+            <h1>{head.name}</h1>
+            <span className="chip brand">{STAGES.find((s) => s.id === head.stage)?.label}</span>
           </div>
-          {p.diagnosis && <div className="muted">{p.diagnosis}</div>}
+          {head.diagnosis && <div className="muted">{head.diagnosis}</div>}
         </div>
-        <div className="row">
-          {p.invite_code && (
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          {row && row.stage === "active" && (
+            <div className="health" title="Engagement over the last two weeks">
+              <EngagementRing value={row.engagement} />
+              <div>
+                <div className="small" style={{ fontWeight: 650 }}>
+                  {row.scheduled_14d ? `${row.completed_14d} of ${row.scheduled_14d} done` : "Nothing scheduled"}
+                  <span className="faint"> · 14 days</span>
+                </div>
+                <div className="tiny muted">
+                  {row.last_active_at ? `Active ${relTime(row.last_active_at)}` : "Not active yet"}
+                  {row.risk_reasons.length ? ` · ${row.risk_reasons.join(" · ")}` : ""}
+                </div>
+              </div>
+            </div>
+          )}
+          {head.invite_code && (
             <button className="btn" onClick={() => setInviting(true)}>
               <Icon name="link" size={18} /> Invite link
             </button>
@@ -68,23 +88,29 @@ export function ClientDetail() {
         ))}
       </div>
 
-      {tab === "board" && <WeekBoard patientId={p.id} />}
-      {tab === "calendar" && <Calendar patientId={p.id} onPickDay={() => setParams({ tab: "board" })} />}
-      {tab === "messages" && (
-        <div style={{ maxWidth: 680 }}>
-          <Chat patientId={p.id} inline />
-        </div>
+      {!p ? (
+        <Spinner />
+      ) : (
+        <>
+          {tab === "board" && <WeekBoard patientId={p.id} />}
+          {tab === "calendar" && <Calendar patientId={p.id} onPickDay={() => setParams({ tab: "board" })} />}
+          {tab === "messages" && (
+            <div style={{ maxWidth: 680 }}>
+              <Chat patientId={p.id} inline />
+            </div>
+          )}
+          {tab === "progress" && (
+            <div style={{ maxWidth: 760 }}>
+              <ProgressView patientId={p.id} />
+            </div>
+          )}
+          {tab === "profile" && <Profile p={p} onSaved={reload} />}
+        </>
       )}
-      {tab === "progress" && (
-        <div style={{ maxWidth: 760 }}>
-          <ProgressView patientId={p.id} />
-        </div>
-      )}
-      {tab === "profile" && <Profile p={p} onSaved={reload} />}
 
-      {inviting && p.invite_code && (
+      {inviting && head.invite_code && (
         <Sheet open onClose={() => setInviting(false)}>
-          <InviteShare name={p.name} code={p.invite_code} onDone={() => setInviting(false)} />
+          <InviteShare name={head.name} code={head.invite_code} onDone={() => setInviting(false)} />
         </Sheet>
       )}
     </div>
