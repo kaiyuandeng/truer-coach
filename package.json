@@ -1,0 +1,32 @@
+{
+  "name": "pt-coach",
+  "version": "1.0.0",
+  "description": "Physical therapy exercise coaching app: therapist dashboard + patient home-screen app",
+  "scripts": {
+    "dev": "npm run build && wrangler dev",
+    "dev:ui": "vite",
+    "build": "vite build",
+    "db:migrate:local": "wrangler d1 migrations apply pt-coach --local",
+    "db:migrate:remote": "wrangler d1 migrations apply pt-coach --remote",
+    "deploy": "npm run build && wrangler d1 migrations apply pt-coach --remote && wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261027.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "wrangler": "^4.153.0"
+  },
+  "private": true,
+  "type": "module"
+}

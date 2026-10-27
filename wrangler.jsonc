@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pt-coach",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/demo/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pt-coach",
+      // Replace with the id printed by `wrangler d1 create pt-coach`
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "pt-coach-media" }
+  ],
+  "vars": {
+    // Set to a non-empty value to require a code when a therapist signs up.
+    "SIGNUP_CODE": "",
+    // "true" enables /demo/coach and /demo/client links with seeded sample data.
+    "DEMO_MODE": "true"
+  }
+}
