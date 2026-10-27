@@ -10,12 +10,16 @@ import { ProgramEditor } from "./ProgramEditor";
 import { Exercises } from "./Exercises";
 import { CoachWorkout } from "./CoachWorkout";
 import { CoachAccount } from "./CoachAccount";
+import { Store } from "./Store";
+import { CourseEditor } from "./CourseEditor";
+import { PublicStore } from "../store/PublicStore";
 import "./coach.css";
 
 /** Everything a coach sees; loaded as its own chunk so clients never download it. */
 export default function CoachRoutes() {
   return (
     <Routes>
+      <Route path="/store/:coachId/:courseId?" element={<PublicStore coachView />} />
       <Route element={<CoachShell />}>
         <Route path="/" element={<Overview />} />
         <Route path="/inbox" element={<Inbox />} />
@@ -26,6 +30,8 @@ export default function CoachRoutes() {
         <Route path="/programs/:id" element={<ProgramEditor />} />
         <Route path="/exercises" element={<Exercises />} />
         <Route path="/workouts/:id" element={<CoachWorkout />} />
+        <Route path="/courses" element={<Store />} />
+        <Route path="/courses/:id" element={<CourseEditor />} />
         <Route path="/account" element={<CoachAccount />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

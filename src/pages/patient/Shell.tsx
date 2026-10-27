@@ -26,6 +26,7 @@ export function PatientShell() {
       <TabBar
         tabs={[
           { to: "/", label: "Workouts", icon: "workouts" },
+          { to: "/shop", label: "Courses", icon: "bag" },
           { to: "/messages", label: "Messages", icon: "messages", badge: unread },
           { to: "/account", label: "Account", icon: "account" },
         ]}

@@ -11,6 +11,11 @@ With `DEMO_MODE` set to `"true"`, these links sign you in to seeded sample data 
 - `/demo/coach`: the coach, Evan
 - `/demo/client/1`: the client, Kai (2 to 5 are other clients)
 - `/demo/reset`: rebuild the sample data now
+- `/store/demo-coach`: Evan's public course store (open it signed out to try guest checkout)
+
+## Course store
+
+Coaches turn any program into a course with a title, pitch, price and cover (Store tab). Clients buy courses from the Courses tab; anyone else can buy from the coach's store link, which signs them up as a client. Checkout is simulated: no card is charged, and `4000 0000 0000 0002` shows a decline. After buying, the client picks a start date and training days and the program's workouts go on their calendar.
 
 ## Develop
 

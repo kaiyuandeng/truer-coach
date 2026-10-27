@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { lazy, Suspense, useState, type FormEvent } from "react";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useApi } from "../hooks";
@@ -161,11 +161,14 @@ export function Join({ onDone }: { onDone: () => void }) {
 }
 
 /** Signed-out routes; loaded as their own chunk. */
+const PublicStore = lazy(() => import("./store/PublicStore").then((m) => ({ default: m.PublicStore })));
+
 export default function AuthRoutes({ onDone }: { onDone: () => void }) {
   return (
     <Routes>
       <Route path="/signup" element={<Signup onDone={onDone} />} />
       <Route path="/join/:code" element={<Join onDone={onDone} />} />
+      <Route path="/store/:coachId/:courseId?" element={<Suspense fallback={<Spinner />}><PublicStore onSignedIn={onDone} /></Suspense>} />
       <Route path="*" element={<Login onDone={onDone} />} />
     </Routes>
   );
