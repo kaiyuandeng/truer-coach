@@ -3,6 +3,8 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./util";
 import { headMedia, maxUpload, putMedia, readMedia } from "./media";
 import { overview } from "./overview";
+import { assignStatements, parseWeekdays, scheduleProgram, templateItems } from "./programs";
+import { publicStoreRoutes, storeRoutes } from "./store";
 import { DEMO_COACH_ID, DEMO_PATIENT_ID, demoSql, demoWipeSql } from "./demo";
 import { addDays, fail, id, inviteCode, isDate, painScore, str } from "./util";
 import {
@@ -115,7 +117,12 @@ app.post("/invite/:code", async (c) => {
 
 // ---------- Everything below needs a signed-in user ----------
 
+// Course store pages are public so a coach can share their store link.
+publicStoreRoutes(app);
+
 app.use("/*", requireUser);
+
+storeRoutes(app);
 
 app.get("/me", async (c) => {
   const user = c.get("user");
@@ -682,19 +689,6 @@ app.get("/activity", async (c) => {
 
 // ---------- Workout CRM: templates ----------
 
-async function templateItems(db: D1Database, templateIds: string[]) {
-  if (!templateIds.length) return [];
-  const { results } = await db
-    .prepare(
-      `SELECT ti.template_id, ti.id, ti.exercise_id, ti.position, ti.block, ti.instructions, e.name, e.video_key, e.video_url, e.body_area
-       FROM template_items ti JOIN exercises e ON e.id = ti.exercise_id
-       WHERE ti.template_id IN (${templateIds.map(() => "?").join(",")}) ORDER BY ti.position`,
-    )
-    .bind(...templateIds)
-    .all<{ template_id: string }>();
-  return results;
-}
-
 app.get("/templates", async (c) => {
   const user = requireTherapist(c);
   const { results } = await c.env.DB.prepare(
@@ -791,27 +785,6 @@ app.delete("/templates/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-function assignStatements(
-  c: Parameters<typeof patientFor>[0],
-  opts: { therapistId: string; patientId: string; templateId: string; programId: string | null; date: string; title: string; notes: string | null },
-  items: { exercise_id: string; block: string; instructions: string | null }[],
-) {
-  const workoutId = id();
-  return {
-    workoutId,
-    stmts: [
-      c.env.DB.prepare(
-        "INSERT INTO workouts (id, patient_id, therapist_id, scheduled_on, title, notes, template_id, program_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      ).bind(workoutId, opts.patientId, opts.therapistId, opts.date, opts.title, opts.notes, opts.templateId, opts.programId),
-      ...items.map((it, i) =>
-        c.env.DB.prepare("INSERT INTO workout_items (id, workout_id, exercise_id, position, block, instructions) VALUES (?, ?, ?, ?, ?, ?)").bind(
-          id(), workoutId, it.exercise_id, i, it.block, it.instructions,
-        ),
-      ),
-    ],
-  };
-}
-
 app.post("/templates/:id/assign", async (c) => {
   const user = requireTherapist(c);
   const t = await loadTemplate(c, c.req.param("id"));
@@ -823,7 +796,7 @@ app.post("/templates/:id/assign", async (c) => {
   const stmts: D1PreparedStatement[] = [];
   const ids: string[] = [];
   for (const date of dates) {
-    const a = assignStatements(c, { therapistId: user.id, patientId: patient.id, templateId: t.id, programId: null, date, title: t.name, notes: t.notes }, items as never);
+    const a = assignStatements(c.env.DB, { therapistId: user.id, patientId: patient.id, templateId: t.id, programId: null, date, title: t.name, notes: t.notes }, items as never);
     ids.push(a.workoutId);
     stmts.push(...a.stmts);
   }
@@ -912,6 +885,8 @@ app.put("/programs/:id", async (c) => {
 
 app.delete("/programs/:id", async (c) => {
   const user = requireTherapist(c);
+  const sold = await c.env.DB.prepare("SELECT title FROM courses WHERE program_id = ? AND therapist_id = ? LIMIT 1").bind(c.req.param("id"), user.id).first<{ title: string }>();
+  if (sold) fail(409, `This program is sold as the course "${sold.title}". Delete the course first.`);
   await c.env.DB.batch([
     c.env.DB.prepare("UPDATE workouts SET program_id = NULL WHERE program_id = ? AND therapist_id = ?").bind(c.req.param("id"), user.id),
     c.env.DB.prepare("DELETE FROM program_days WHERE program_id IN (SELECT id FROM programs WHERE id = ? AND therapist_id = ?)").bind(c.req.param("id"), user.id),
@@ -933,43 +908,13 @@ app.post("/programs/:id/assign", async (c) => {
   const b = await body(c);
   const patient = await patientFor(c, typeof b.patientId === "string" ? b.patientId : null);
   if (!isDate(b.startDate)) fail(400, "Pick a start date");
-  const weekdays = Array.isArray(b.weekdays) ? b.weekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6) : [];
-  if (weekdays.length !== program.days_per_week) fail(400, `Pick ${program.days_per_week} training days`);
-  weekdays.sort((a, z) => ((a + 6) % 7) - ((z + 6) % 7)); // Monday-first order
-
-  const { results: days } = await c.env.DB.prepare("SELECT week, day, template_id FROM program_days WHERE program_id = ?")
-    .bind(program.id)
-    .all<{ week: number; day: number; template_id: string }>();
-  const items = await templateItems(c.env.DB, [...new Set(days.map((d) => d.template_id))]);
-  const notes = await c.env.DB.prepare(`SELECT id, notes FROM templates WHERE therapist_id = ?`).bind(user.id).all<{ id: string; notes: string | null }>();
-
-  // Week 1 starts on the Monday of the start date's week; days before the start date are skipped.
-  const start = b.startDate as string;
-  const startDow = (new Date(start + "T00:00:00Z").getUTCDay() + 6) % 7;
-  const monday = addDays(start, -startDow);
-  const stmts: D1PreparedStatement[] = [];
-  let created = 0;
-  for (const d of days) {
-    const dow = weekdays[d.day - 1];
-    const date = addDays(monday, (d.week - 1) * 7 + ((dow + 6) % 7));
-    if (date < start) continue;
-    const a = assignStatements(
-      c,
-      {
-        therapistId: user.id,
-        patientId: patient.id,
-        templateId: d.template_id,
-        programId: program.id,
-        date,
-        title: `${program.name} Week ${d.week} Day ${d.day}`,
-        notes: notes.results.find((n) => n.id === d.template_id)?.notes ?? null,
-      },
-      items.filter((i) => (i as { template_id: string }).template_id === d.template_id) as never,
-    );
-    stmts.push(...a.stmts);
-    created++;
-  }
-  if (!created) fail(400, "No program days fall on or after the start date");
+  const { stmts, created } = await scheduleProgram(c.env.DB, {
+    therapistId: user.id,
+    patientId: patient.id,
+    programId: program.id,
+    startDate: b.startDate,
+    weekdays: parseWeekdays(b.weekdays, program.days_per_week),
+  });
   await c.env.DB.batch(stmts);
   return c.json({ created });
 });

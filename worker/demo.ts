@@ -107,6 +107,35 @@ const TEMPLATES: [string, string, string, string, string | null, [string, string
 const PROGRAMS: [string, string, string, number, number, string[]][] = [
   ["prog-phase-13", "Phase 13", "Base strength with daily foot and ankle work.", 4, 2, ["tpl-strength-a13", "tpl-strength-b13"]],
   ["prog-phase-14", "Phase 14", "Load progression: goblet squat to 35 lb, single-leg work, more trunk.", 4, 2, ["tpl-strength-a", "tpl-strength-b"]],
+  // Programs Evan sells as courses in his store.
+  ["prog-pf-reset", "Plantar Fascia Reset", "Daily foot, ankle and calf work for heel and arch pain.", 4, 3, ["tpl-pf-ankle-wrist", "tpl-pf-knee", "tpl-pf-ankle-wrist"]],
+  ["prog-lower-body", "Bulletproof Lower Body", "Strength A/B split for knees, hips and ankles that hold up to running and hiking.", 6, 2, ["tpl-strength-a", "tpl-strength-b"]],
+  ["prog-desk", "Desk Worker Reset", "Short mobility sessions for stiff backs, necks and wrists.", 3, 3, ["tpl-desk-reset", "tpl-desk-reset", "tpl-desk-reset"]],
+  ["prog-acl", "ACL Early Phase", "Weeks 2 to 8 after ACL reconstruction.", 6, 3, ["tpl-acl-early", "tpl-acl-early", "tpl-acl-early"]],
+];
+
+// Courses: [id, program, title, tagline, level, price in cents, cover, published, description, highlights]
+const COURSES: [string, string, string, string, string, number, string, number, string, string][] = [
+  ["course-pf", "prog-pf-reset", "Plantar Fascia Reset", "Four weeks to pain-free mornings", "Beginner", 4900, "teal", 1,
+    "The same foot and ankle routine I use with my in-person clients who wake up with heel pain. Three short sessions a week: soft tissue work, ankle mobility, and simple strength for the arch and calf. Every exercise has a demo video, and you can message me from the app if something doesn't feel right.",
+    "Heel or arch pain that's worst first thing in the morning\nAbout 20 minutes, three days a week\nYou'll need a foam roller, a lacrosse ball, a towel and a light band"],
+  ["course-lower", "prog-lower-body", "Bulletproof Lower Body", "Six weeks of strength for runners and hikers", "Intermediate", 8900, "violet", 1,
+    "A two-day-a-week strength program built around goblet squats, single-leg deadlifts, step-ups and trunk work. It's what my clients do once the pain is gone and they want to stay that way.",
+    "Runners, hikers and anyone coming back from a knee or ankle injury\nTwo 45-minute sessions a week\nA kettlebell or dumbbell, a step, and a pull-up bar"],
+  ["course-desk", "prog-desk", "Desk Worker Reset", "Fifteen minutes for a stiff back and neck", "All levels", 2900, "ocean", 1,
+    "Mobility for people who sit all day: thoracic extension and rotation, hip openers and wrist work. Short enough to do on a lunch break.",
+    "Stiff upper back, neck or wrists from desk work\n15 minutes, three days a week\nA foam roller"],
+  ["course-acl", "prog-acl", "ACL Early Phase", "Weeks 2 to 8 after surgery", "Beginner", 12900, "sunset", 0,
+    "Early-phase ACL rehab: regain extension, quad control and confidence on stairs. Check with your surgeon before starting.",
+    "Two to eight weeks after ACL reconstruction\nThree short sessions a week"],
+];
+
+// Course buyers who aren't regular clients: they found Evan's store link and signed up at checkout.
+const STORE_BUYERS: [string, string, string, number][] = [
+  // id, name, course, days ago
+  ["demo-lena", "Lena Park", "course-lower", 3],
+  ["demo-marcus", "Marcus Bell", "course-pf", 9],
+  ["demo-ruth", "Ruth Adeyemi", "course-pf", 17],
 ];
 
 const OTHER_PATIENTS: [string, string, string, number, number][] = [
@@ -243,6 +272,29 @@ export function demoSql(today: string): string[] {
     ...inserts("workouts", ["id", "patient_id", "therapist_id", "scheduled_on", "title", "notes", "completed_at", "pain_before", "pain_after", "template_id", "program_id"], workouts),
     ...inserts("workout_items", ["id", "workout_id", "exercise_id", "position", "block", "instructions", "result", "done"], items),
   );
+  // ---- Course store: courses, store-only buyers, and two clients working through a course they bought ----
+  sql.push(
+    ...inserts("courses", ["id", "therapist_id", "program_id", "title", "tagline", "level", "price_cents", "cover", "published", "description", "highlights", "created_at", "updated_at"],
+      COURSES.map(([cid, prog, title, tagline, level, price, cover, published, desc, highlights], i) =>
+        [cid, DEMO_COACH_ID, prog, title, tagline, level, price, cover, published, desc, highlights, addDays(today, -60 + i * 5) + " 10:00:00", addDays(today, -20 + i * 3) + " 10:00:00"])),
+    ...inserts("users", ["id", "role", "name", "email", "therapist_id", "goals", "stage", "stage_changed_at", "source", "created_at"],
+      STORE_BUYERS.map(([uid, name, course, ago]) =>
+        [uid, "patient", name, `${uid.slice(5)}@demo.rehabloop`, DEMO_COACH_ID, `Bought "${COURSES.find((c) => c[0] === course)![2]}"`, "active", addDays(today, -ago), "Course store", addDays(today, -ago)])),
+  );
+  // exec() can't take raw newlines inside a statement, so q() escapes them; turn them back into real ones.
+  sql.push(`UPDATE courses SET highlights = REPLACE(highlights, '\\n', char(10)) WHERE therapist_id = '${DEMO_COACH_ID}';`);
+  const price = (cid: string) => COURSES.find((c) => c[0] === cid)![5];
+  const purchases: Row[] = [
+    ...STORE_BUYERS.map(([uid, , course, ago]) => [`demo-pur-${uid.slice(5)}`, course, uid, price(course), `demo_${uid.slice(5)}`, null, `${addDays(today, -ago)} 20:12:00`] as Row),
+    ["demo-pur-jordan", "course-desk", "demo-jordan", price("course-desk"), "demo_jordan", addDays(today, -35), `${addDays(today, -36)} 08:40:00`],
+    ["demo-pur-sam", "course-pf", "demo-sam", price("course-pf"), "demo_sam", addDays(today, -35), `${addDays(today, -37)} 18:05:00`],
+  ];
+  sql.push(...inserts("course_purchases", ["id", "course_id", "buyer_id", "price_cents", "payment_ref", "started_on", "created_at"], purchases));
+  sql.push(
+    `UPDATE workouts SET purchase_id = 'demo-pur-jordan', program_id = 'prog-desk' WHERE patient_id = 'demo-jordan';`,
+    `UPDATE workouts SET purchase_id = 'demo-pur-sam', program_id = 'prog-pf-reset' WHERE patient_id = 'demo-sam';`,
+  );
+
   // Fresh comments from the last couple of days, still waiting on a reply in the coach inbox.
   const recent: [string, string, string][] = [
     [DEMO_PATIENT_ID, addDays(today, -1), "Arch was sore after yesterday's step ups, maybe a 3/10. Rolled it out and it calmed down."],
@@ -279,6 +331,8 @@ export function demoWipeSql(): string[] {
   const people = `(SELECT id FROM users WHERE id = '${DEMO_COACH_ID}' OR therapist_id = '${DEMO_COACH_ID}')`;
   return [
     `DELETE FROM sessions WHERE user_id IN ${people};`,
+    `DELETE FROM course_purchases WHERE buyer_id IN ${people} OR course_id IN (SELECT id FROM courses WHERE therapist_id = '${DEMO_COACH_ID}');`,
+    `DELETE FROM courses WHERE therapist_id = '${DEMO_COACH_ID}';`,
     `DELETE FROM workout_comments WHERE workout_id IN (SELECT id FROM workouts WHERE therapist_id = '${DEMO_COACH_ID}');`,
     `DELETE FROM workout_items WHERE workout_id IN (SELECT id FROM workouts WHERE therapist_id = '${DEMO_COACH_ID}');`,
     `DELETE FROM workouts WHERE therapist_id = '${DEMO_COACH_ID}' OR patient_id IN ${patients};`,

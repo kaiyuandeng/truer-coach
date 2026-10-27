@@ -11,6 +11,7 @@ export function CoachShell() {
     { to: "/clients", label: "Clients", icon: "users" },
     { to: "/library", label: "Workouts", icon: "library" },
     { to: "/exercises", label: "Exercises", icon: "dumbbell" },
+    { to: "/courses", label: "Store", icon: "store" },
     { to: "/account", label: "Account", icon: "account" },
   ];
   return (
