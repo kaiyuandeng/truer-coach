@@ -17,12 +17,19 @@ With `DEMO_MODE` set to `"true"`, these links sign you in to seeded sample data 
 
 Coaches turn any program into a course with a title, pitch, price and cover (Store tab). Clients buy courses from the Courses tab; anyone else can buy from the coach's store link, which signs them up as a client. Checkout is simulated: no card is charged, and `4000 0000 0000 0002` shows a decline. After buying, the client picks a start date and training days and the program's workouts go on their calendar.
 
+## Onboarding pipeline
+
+Clients → Onboarding tracks leads through Evan's process: a 15 minute pitch call, a 1 hour needs call, then the decision. The funnel at the top shows how many leads from the last 90 days made it through each call and signed up. Leads come in by hand, from a CRM, or from a pasted CSV.
+
+CRM ingest lives in `worker/crm.ts`. Each adapter returns raw records from one CRM, `normalizeLead` (`worker/pipeline-logic.ts`) maps common field and stage names onto the pipeline, and re-imports update the same people instead of duplicating them. "Sample CRM" is a mock with seeded leads; HubSpot, GoHighLevel and Pipedrive are listed but not connected. To connect one, give its adapter a real `fetchLeads` with an API key from a Worker secret, or post `{ provider, leads: [...] }` to `POST /api/pipeline/ingest` (it takes the coach's session today, so a CRM webhook or Zapier would also need a per-coach API key).
+
 ## Develop
 
 ```sh
 npm install
 npm run db:migrate:local
 npm run dev            # http://localhost:8787
+npm test               # pipeline rules
 ```
 
 ## Deploy
