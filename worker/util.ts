@@ -2,7 +2,9 @@ import { HTTPException } from "hono/http-exception";
 
 export type Env = {
   DB: D1Database;
-  MEDIA: R2Bucket;
+  /** Optional: R2 needs a card on file even on the free plan. */
+  MEDIA?: R2Bucket;
+  MEDIA_KV?: KVNamespace;
   ASSETS: Fetcher;
   SIGNUP_CODE?: string;
   DEMO_MODE?: string;

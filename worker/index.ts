@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./util";
+import { headMedia, maxUpload, putMedia, readMedia } from "./media";
 import { DEMO_COACH_ID, DEMO_PATIENT_ID, demoSql, demoWipeSql } from "./demo";
 import { addDays, fail, id, inviteCode, isDate, painScore, str } from "./util";
 import {
@@ -1099,53 +1100,53 @@ app.post("/inbox/dismiss", async (c) => {
   return c.json({ ok: true });
 });
 
-// ---------- Media (R2) ----------
-
-const MAX_UPLOAD = 200 * 1024 * 1024;
+// ---------- Media (R2, or KV when R2 isn't enabled) ----------
 
 app.post("/media", async (c) => {
   const user = c.get("user");
   const type = c.req.header("content-type") ?? "";
   if (!/^(image|video)\//.test(type)) fail(400, "Only photos and videos can be uploaded");
+  const limit = maxUpload(c.env);
   const length = Number(c.req.header("content-length") ?? 0);
-  if (length > MAX_UPLOAD) fail(400, "That file is over 200 MB");
+  if (length > limit || !c.req.raw.body) fail(400, `Files can be up to ${limit / 1024 / 1024} MB`);
   const ext = (type.split("/")[1] ?? "bin").replace(/[^a-z0-9]/gi, "").slice(0, 8);
   const key = `${user.id}/${id()}.${ext}`;
-  await c.env.MEDIA.put(key, c.req.raw.body, { httpMetadata: { contentType: type } });
+  try {
+    await putMedia(c.env, key, c.req.raw.body!, type);
+  } catch {
+    fail(400, `Files can be up to ${limit / 1024 / 1024} MB`);
+  }
   return c.json({ key, type });
 });
 
 app.get("/media/:owner/:file", async (c) => {
   const key = `${c.req.param("owner")}/${c.req.param("file")}`;
   if (!(await canReadMedia(c.env, c.get("user"), key))) fail(404, "Not found");
-  // Safari needs byte-range support to play video.
-  const range = c.req.header("range");
-  const head = await c.env.MEDIA.head(key);
+  const head = await headMedia(c.env, key);
   if (!head) fail(404, "Not found");
+  const { size } = head!;
   const headers = new Headers({
-    "content-type": head.httpMetadata?.contentType ?? "application/octet-stream",
+    "content-type": head!.type,
     "accept-ranges": "bytes",
     "cache-control": "private, max-age=31536000, immutable",
-    etag: head.httpEtag,
+    etag: head!.etag,
   });
-  const m = range?.match(/^bytes=(\d*)-(\d*)$/);
+  // Safari needs byte-range support to play video.
+  const m = c.req.header("range")?.match(/^bytes=(\d*)-(\d*)$/);
+  let start = 0;
+  let end = size - 1;
   if (m && (m[1] || m[2])) {
-    const size = head.size;
-    let start = m[1] ? Number(m[1]) : size - Number(m[2]);
-    let end = m[1] && m[2] ? Number(m[2]) : size - 1;
+    start = m[1] ? Number(m[1]) : size - Number(m[2]);
+    end = m[1] && m[2] ? Number(m[2]) : size - 1;
     start = Math.max(0, start);
     end = Math.min(end, size - 1);
     if (start > end) return new Response(null, { status: 416, headers: { "content-range": `bytes */${size}` } });
-    const obj = await c.env.MEDIA.get(key, { range: { offset: start, length: end - start + 1 } });
-    if (!obj) fail(404, "Not found");
     headers.set("content-range", `bytes ${start}-${end}/${size}`);
-    headers.set("content-length", String(end - start + 1));
-    return new Response(obj.body, { status: 206, headers });
   }
-  const obj = await c.env.MEDIA.get(key);
-  if (!obj) fail(404, "Not found");
-  headers.set("content-length", String(head.size));
-  return new Response(obj.body, { headers });
+  const body = await readMedia(c.env, key, start, end);
+  if (!body) fail(404, "Not found");
+  headers.set("content-length", String(end - start + 1));
+  return new Response(body, { status: m && (m[1] || m[2]) ? 206 : 200, headers });
 });
 
 // ---------- Demo links: /demo/coach, /demo/client, /demo/client/2 ... ----------

@@ -13,13 +13,13 @@
     {
       "binding": "DB",
       "database_name": "pt-coach",
-      // Replace with the id printed by `wrangler d1 create pt-coach`
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "193b6082-5240-40d7-8062-0d617d8f7643",
       "migrations_dir": "migrations"
     }
   ],
-  "r2_buckets": [
-    { "binding": "MEDIA", "bucket_name": "pt-coach-media" }
+  // Photos and videos. To use R2 instead (needs a card on file), add an r2_buckets entry with binding "MEDIA".
+  "kv_namespaces": [
+    { "binding": "MEDIA_KV", "id": "88fe189ecc544c19a1f12bb0c716375b" }
   ],
   "vars": {
     // Set to a non-empty value to require a code when a therapist signs up.
