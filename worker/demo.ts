@@ -164,6 +164,27 @@ export function demoSql(today: string): string[] {
       ["demo-taylor", "patient", "Taylor Brooks", null, DEMO_COACH_ID, "Chronic neck pain, office worker", null, "Free consult booked for Thursday.", "consult", addDays(today, -4), "Referral: Dr. Patel", 350, addDays(today, 2), addDays(today, -9)],
       ["demo-morgan", "patient", "Morgan Diaz", "morgan@demo.rehabloop", DEMO_COACH_ID, "Hip impingement", null, "Travelling until December. Check in on the 1st.", "paused", addDays(today, -20), "Google", 400, addDays(today, 12), addDays(today, -160)],
       ["demo-chris", "patient", "Chris Novak", "chris@demo.rehabloop", DEMO_COACH_ID, "Tennis elbow (resolved)", null, "Finished treatment, happy. Ask for a testimonial.", "churned", addDays(today, -35), "Google", 300, null, addDays(today, -200)],
+      ["demo-lena-ortiz", "patient", "Lena Ortiz", null, DEMO_COACH_ID, "Hypermobility, wants to start lifting safely", null, "Great needs call. Thinking it over, asked about a 3-month package.", "consult", addDays(today, -3), "Referral: Kai", 400, addDays(today, 1), addDays(today, -14)],
+      ["demo-ben", "patient", "Ben Carter", null, DEMO_COACH_ID, "Golfer's elbow", null, null, "churned", addDays(today, -24), "Google", 300, null, addDays(today, -27)],
+      ["demo-ivy", "patient", "Ivy Nguyen", null, DEMO_COACH_ID, "Post-op ankle (ORIF), 4 months out", null, null, "churned", addDays(today, -40), "Website", 450, null, addDays(today, -50)],
+    ]),
+  );
+
+  // Onboarding pipeline: 15 min pitch call -> 1 hour needs call -> decision. Won rows are current
+  // clients who came through it, so the funnel has history.
+  const at = (d: number, time = "12:00:00") => `${addDays(today, d)} ${time}`;
+  sql.push(
+    ...inserts("lead_pipeline", ["patient_id", "therapist_id", "step", "step_changed_at", "pitch_at", "pitch_done_at", "needs_at", "needs_done_at", "decided_at", "lost_reason", "contact_email", "created_at"], [
+      ["demo-alex", DEMO_COACH_ID, "new", at(-2), null, null, null, null, null, null, "alex.chen@example.com", at(-2)],
+      ["demo-nina", DEMO_COACH_ID, "pitch", at(-5), `${addDays(today, 1)}T10:00`, null, null, null, null, null, "nina.o@example.com", at(-6)],
+      ["demo-taylor", DEMO_COACH_ID, "needs", at(-4), `${addDays(today, -5)}T09:30`, at(-4), `${addDays(today, 2)}T17:30`, null, null, null, "taylor.b@example.com", at(-9)],
+      ["demo-lena-ortiz", DEMO_COACH_ID, "decision", at(-3), `${addDays(today, -11)}T12:15`, at(-11), `${addDays(today, -3)}T18:00`, at(-3), null, null, "lena.ortiz@example.com", at(-14)],
+      ["demo-ben", DEMO_COACH_ID, "lost", at(-24), `${addDays(today, -25)}T08:00`, at(-24), null, null, at(-24), "Price. Wanted something under $200/mo.", null, at(-27)],
+      ["demo-ivy", DEMO_COACH_ID, "lost", at(-40), `${addDays(today, -48)}T11:00`, at(-47), `${addDays(today, -44)}T16:00`, at(-44), at(-40), "Chose in-person PT closer to home", null, at(-50)],
+      ...OTHER_PATIENTS.map(([pid], i) => {
+        const c = -45 - i * 23;
+        return [pid, DEMO_COACH_ID, "won", at(c + 7), `${addDays(today, c + 2)}T12:00`, at(c + 2), `${addDays(today, c + 5)}T17:00`, at(c + 5), at(c + 7), null, null, at(c)] as Row;
+      }),
     ]),
   );
 
@@ -342,6 +363,8 @@ export function demoWipeSql(): string[] {
     `DELETE FROM template_items WHERE template_id IN (SELECT id FROM templates WHERE therapist_id = '${DEMO_COACH_ID}');`,
     `DELETE FROM templates WHERE therapist_id = '${DEMO_COACH_ID}';`,
     `DELETE FROM exercises WHERE therapist_id = '${DEMO_COACH_ID}';`,
+    `DELETE FROM lead_pipeline WHERE therapist_id = '${DEMO_COACH_ID}';`,
+    `DELETE FROM crm_imports WHERE therapist_id = '${DEMO_COACH_ID}';`,
     `DELETE FROM users WHERE therapist_id = '${DEMO_COACH_ID}';`,
     `DELETE FROM users WHERE id = '${DEMO_COACH_ID}';`,
   ];

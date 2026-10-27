@@ -6,6 +6,7 @@ import { dayLabel, relTime } from "../../dates";
 import { Icon } from "../../components/Icon";
 import { Empty, Sheet, Spinner, painColor, toast } from "../../components/ui";
 import { Kpis } from "./Inbox";
+import { Onboarding } from "./Onboarding";
 
 export type Stage = "lead" | "consult" | "active" | "paused" | "churned";
 
@@ -22,6 +23,7 @@ export type CrmRow = {
   follow_up_on: string | null;
   invite_code: string | null;
   created_at: string;
+  pipeline_step: string | null;
   scheduled_14d: number;
   completed_14d: number;
   last_active_at: string | null;
@@ -35,8 +37,8 @@ export type CrmRow = {
 };
 
 export const STAGES: { id: Stage; label: string; hint: string }[] = [
-  { id: "lead", label: "Leads", hint: "Interested, not booked" },
-  { id: "consult", label: "Consult", hint: "Assessment booked" },
+  { id: "lead", label: "Lead", hint: "New or pitch call" },
+  { id: "consult", label: "Onboarding", hint: "Needs call or deciding" },
   { id: "active", label: "Active", hint: "Training now" },
   { id: "paused", label: "Paused", hint: "Taking a break" },
   { id: "churned", label: "Churned", hint: "Finished or left" },
@@ -53,22 +55,11 @@ function engColor(n: number) {
 export function Clients() {
   const nav = useNavigate();
   const { data, setData, loading, reload } = useApi<CrmRow[]>("/crm");
-  const [view, setView] = useState<"pipeline" | "table">("table");
+  const [view, setView] = useState<"pipeline" | "table" | "past">("table");
   const [adding, setAdding] = useState<Stage | null>(null);
-  const [overStage, setOverStage] = useState<Stage | null>(null);
+  const [rev, setRev] = useState(0);
   const [sort, setSort] = useState<"risk" | "engagement" | "name">("risk");
   useOnFocus(reload);
-
-  const moveTo = async (id: string, stage: Stage) => {
-    setData((cur) => cur?.map((r) => (r.id === id ? { ...r, stage } : r)) ?? cur);
-    try {
-      await api.patch(`/patients/${id}`, { stage });
-      reload();
-    } catch (e) {
-      toast((e as Error).message);
-      reload();
-    }
-  };
 
   const riskRank = { high: 0, medium: 1, low: 2 } as const;
   const active = (data ?? [])
@@ -82,12 +73,13 @@ export function Clients() {
       <div className="row between" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <h1>Clients</h1>
         <div className="row">
-          <div className="segmented" style={{ width: 220 }}>
+          <div className="segmented" style={{ width: 300 }}>
             <button className={view === "table" ? "on" : ""} onClick={() => setView("table")}>Active</button>
-            <button className={view === "pipeline" ? "on" : ""} onClick={() => setView("pipeline")}>Pipeline</button>
+            <button className={view === "pipeline" ? "on" : ""} onClick={() => setView("pipeline")}>Onboarding</button>
+            <button className={view === "past" ? "on" : ""} onClick={() => setView("past")}>Past</button>
           </div>
           <button className="btn primary" onClick={() => setAdding(view === "pipeline" ? "lead" : "active")}>
-            <Icon name="plus" size={18} /> Add client
+            <Icon name="plus" size={18} /> {view === "pipeline" ? "Add lead" : "Add client"}
           </button>
         </div>
       </div>
@@ -96,60 +88,9 @@ export function Clients() {
       {loading && !data ? (
         <Spinner />
       ) : view === "pipeline" ? (
-        <div className="pipeline">
-          {STAGES.map((s) => {
-            const rows = (data ?? []).filter((r) => r.stage === s.id);
-            const value = rows.reduce((n, r) => n + (r.monthly_rate ?? 0), 0);
-            return (
-              <div
-                key={s.id}
-                className={`stage-col${overStage === s.id ? " drag-over" : ""}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setOverStage(s.id);
-                }}
-                onDragLeave={() => setOverStage(null)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setOverStage(null);
-                  const id = e.dataTransfer.getData("text/client");
-                  if (id) moveTo(id, s.id);
-                }}
-              >
-                <div className="stage-head">
-                  <span>{s.label} <span className="faint">{rows.length}</span></span>
-                  {value > 0 && <span className="faint tiny">${value.toLocaleString()}/mo</span>}
-                </div>
-                {rows.map((r) => (
-                  <div
-                    key={r.id}
-                    className="deal"
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData("text/client", r.id)}
-                    onClick={() => nav(`/clients/${r.id}${r.stage === "active" ? "" : "?tab=profile"}`)}
-                  >
-                    <div className="row between">
-                      <b>{r.name}</b>
-                      {r.churn_risk && r.churn_risk !== "low" && <span className={`chip risk-${r.churn_risk}`} style={{ fontSize: 11, padding: "1px 7px" }}>{r.churn_risk}</span>}
-                    </div>
-                    {r.diagnosis && <div className="tiny muted ellipsis">{r.diagnosis}</div>}
-                    <div className="row tiny faint" style={{ marginTop: 6, gap: 8, flexWrap: "wrap" }}>
-                      {r.source && <span>{r.source}</span>}
-                      {r.monthly_rate ? <span>${r.monthly_rate}/mo</span> : null}
-                      {r.follow_up_on && <span style={{ color: r.follow_up_on <= new Date().toISOString().slice(0, 10) ? "var(--danger)" : undefined }}>Follow up {dayLabel(r.follow_up_on).toLowerCase()}</span>}
-                    </div>
-                    {r.stage === "active" && (
-                      <div className="meter" style={{ marginTop: 8 }} title={`Engagement ${r.engagement}`}>
-                        <div style={{ width: `${r.engagement}%`, background: engColor(r.engagement) }} />
-                      </div>
-                    )}
-                  </div>
-                ))}
-                <button className="btn sm ghost block" onClick={() => setAdding(s.id)}><Icon name="plus" size={14} /> Add</button>
-              </div>
-            );
-          })}
-        </div>
+        <Onboarding key={rev} />
+      ) : view === "past" ? (
+        <PastClients rows={(data ?? []).filter((r) => (r.stage === "paused" || r.stage === "churned") && r.pipeline_step !== "lost")} />
       ) : !active.length ? (
         <div className="card pad"><Empty icon="users" title="No active clients">Add a client and send them their invite link.</Empty></div>
       ) : (
@@ -197,7 +138,27 @@ export function Clients() {
         </div>
       )}
 
-      {adding && <AddClient stage={adding} onClose={() => setAdding(null)} onAdded={reload} />}
+      {adding && <AddClient stage={adding} onClose={() => setAdding(null)} onAdded={() => { reload(); setRev((n) => n + 1); }} />}
+    </div>
+  );
+}
+
+function PastClients({ rows }: { rows: CrmRow[] }) {
+  const nav = useNavigate();
+  if (!rows.length) return <div className="card pad"><Empty icon="users" title="No past clients">Paused and finished clients show up here.</Empty></div>;
+  return (
+    <div className="list">
+      {[...rows].sort((a, b) => b.stage_changed_at.localeCompare(a.stage_changed_at)).map((r) => (
+        <div key={r.id} className="list-item click" onClick={() => nav(`/clients/${r.id}`)}>
+          <div className="avatar">{r.name[0]}</div>
+          <div className="grow">
+            <div style={{ fontWeight: 650 }}>{r.name}</div>
+            <div className="tiny muted ellipsis">{r.diagnosis}</div>
+          </div>
+          {r.follow_up_on && <span className="tiny" style={{ color: r.follow_up_on <= new Date().toISOString().slice(0, 10) ? "var(--danger)" : "var(--text-3)" }}>Follow up {dayLabel(r.follow_up_on).toLowerCase()}</span>}
+          <span className="chip">{r.stage === "paused" ? "Paused" : "Finished"} {relTime(r.stage_changed_at)}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -226,7 +187,7 @@ function AddClient({ stage, onClose, onAdded }: { stage: Stage; onClose: () => v
         <InviteShare name={form.name} code={code} onDone={onClose} />
       ) : (
         <div className="stack">
-          <h2>Add client</h2>
+          <h2>{form.stage === "lead" || form.stage === "consult" ? "Add lead" : "Add client"}</h2>
           <label className="field"><span>Name</span><input className="input" value={form.name} onChange={set("name")} autoFocus /></label>
           <label className="field"><span>Diagnosis or focus</span><input className="input" value={form.diagnosis} onChange={set("diagnosis")} placeholder="e.g. Plantar fasciitis, ankle mobility" /></label>
           <div className="row">

@@ -6,6 +6,7 @@ import { overview } from "./overview";
 import { assignStatements, parseWeekdays, scheduleProgram, templateItems } from "./programs";
 import { publicStoreRoutes, storeRoutes } from "./store";
 import { DEMO_COACH_ID, DEMO_PATIENT_ID, demoSql, demoWipeSql } from "./demo";
+import { pipeline, syncStepFromStage } from "./pipeline";
 import { addDays, fail, id, inviteCode, isDate, painScore, str } from "./util";
 import {
   canReadMedia,
@@ -237,6 +238,7 @@ app.patch("/patients/:id", async (c) => {
       await c.env.DB.prepare("UPDATE users SET stage = ?, stage_changed_at = datetime('now') WHERE id = ? AND stage != ?")
         .bind(b.stage, patient.id, b.stage)
         .run();
+      await syncStepFromStage(c.env.DB, patient.id, String(b.stage));
     }
     for (const f of ["source", "phone"]) if (f in b) await c.env.DB.prepare(`UPDATE users SET ${f} = ? WHERE id = ?`).bind(str(b[f], 100), patient.id).run();
     if ("monthly_rate" in b)
@@ -950,6 +952,7 @@ app.get("/crm", async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT p.id, p.name, p.email, p.diagnosis, p.stage, p.stage_changed_at, p.source, p.phone, p.monthly_rate, p.follow_up_on,
        p.invite_code, p.created_at, p.archived,
+       (SELECT step FROM lead_pipeline lp WHERE lp.patient_id = p.id) AS pipeline_step,
        (SELECT COUNT(*) FROM workouts w WHERE w.patient_id = p.id AND w.scheduled_on BETWEEN ? AND ?) AS scheduled_14d,
        (SELECT COUNT(*) FROM workouts w WHERE w.patient_id = p.id AND w.scheduled_on BETWEEN ? AND ? AND w.completed_at IS NOT NULL) AS completed_14d,
        (SELECT COUNT(*) FROM workouts w WHERE w.patient_id = p.id AND w.scheduled_on BETWEEN ? AND ?) AS scheduled_prev,
@@ -1000,6 +1003,10 @@ export function scoreClient(r: Record<string, number | string | null>, t: string
 }
 
 app.route("/", overview);
+
+// ---------- Onboarding pipeline and CRM ingest (worker/pipeline.ts) ----------
+
+app.route("/pipeline", pipeline);
 
 // ---------- Coach inbox ----------
 

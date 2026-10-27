@@ -10,7 +10,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply pt-coach --remote",
     "deploy": "npm run build && wrangler d1 migrations apply pt-coach --remote && wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/"
+    "test": "node --experimental-strip-types --test test/*.test.ts"
   },
   "dependencies": {
     "hono": "^4.13.14"
