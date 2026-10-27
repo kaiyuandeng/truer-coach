@@ -2,7 +2,8 @@
 
 /* ---------- Page header ---------- */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-.page-head h1 { font-size: 30px; letter-spacing: -0.025em; }
+.coach-main h1 { font-size: 30px; letter-spacing: -0.025em; line-height: 1.15; }
+.show-narrow { display: none; }
 .page-sub { margin: 4px 0 0; color: var(--text-2); font-size: 15px; max-width: 70ch; }
 
 /* ---------- Side nav ---------- */
@@ -47,7 +48,9 @@
   .status-tile .l { font-size: 14px; line-height: 1.25; }
   .status-tile .h { display: none; }
   .hide-narrow { display: none; }
-  .page-head h1 { font-size: 26px; }
+  .show-narrow { display: grid; }
+  .coach-main h1 { font-size: 26px; }
+  .overview-head { flex-wrap: nowrap; align-items: flex-start; }
 }
 .status-tile {
   --tone: var(--brand); --tone-soft: var(--brand-soft);
@@ -136,3 +139,8 @@
 .skeleton { min-height: 230px; cursor: default; background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%) 0 0 / 300% 100%; animation: shimmer 1.2s linear infinite; }
 .skeleton:hover { transform: none; }
 @keyframes shimmer { to { background-position: -150% 0; } }
+
+/* ---------- Client detail ---------- */
+.coach-main .inner:has(.client-detail) { max-width: 1680px; }
+.health { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px; background: var(--surface); border-radius: 999px; box-shadow: var(--shadow); max-width: 520px; }
+.health .tiny { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

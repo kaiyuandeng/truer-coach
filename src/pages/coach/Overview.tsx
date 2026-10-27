@@ -64,12 +64,13 @@ export function Overview() {
 
   return (
     <div>
-      <header className="page-head">
+      <header className="page-head overview-head">
         <div>
           <h1>{greeting()}, {me.name.split(" ")[0]}</h1>
           <p className="page-sub">{loading ? " " : summary(rows, waitingTotal)}</p>
         </div>
         <Link to="/clients" className="btn hide-narrow">All clients</Link>
+        <Link to="/account" className="avatar show-narrow" aria-label="Account">{me.name[0]}</Link>
       </header>
 
       <div className="status-tiles" role="group" aria-label="Filter clients">
@@ -177,7 +178,7 @@ function ClientCard({ r, today, from, index, onOpen }: { r: Row; today: string; 
       aria-label={`${r.name}, ${STATUS[r.status].label}`}
     >
       <div className="cc-head">
-        <Ring value={r.engagement} />
+        <EngagementRing value={r.engagement} />
         <div className="grow">
           <div className="cc-name ellipsis">{r.name}</div>
           <div className="cc-dx ellipsis">{r.diagnosis || " "}</div>
@@ -260,7 +261,7 @@ function ClientCard({ r, today, from, index, onOpen }: { r: Row; today: string; 
   );
 }
 
-function Ring({ value }: { value: number }) {
+export function EngagementRing({ value }: { value: number }) {
   const r = 17;
   const c = 2 * Math.PI * r;
   const color = value >= 70 ? "var(--accent)" : value >= 45 ? "var(--warn)" : "var(--danger)";

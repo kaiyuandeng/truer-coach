@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confetti } from "../../components/confetti";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useApi, useOnFocus } from "../../hooks";
@@ -71,7 +72,21 @@ export function Inbox() {
           ) : (
             <div className="card">
               {inbox.data.map((it) => (
-                <InboxRow key={it.kind + it.id} it={it} onDone={() => { inbox.reload(); refreshUnread(); }} />
+                <InboxRow
+                  key={it.kind + it.id}
+                  it={it}
+                  onDone={() => {
+                    // Drop the row right away; the reload confirms it.
+                    const left = (inbox.data ?? []).filter((x) => !(x.kind === it.kind && x.id === it.id));
+                    inbox.setData(left);
+                    if (!left.length) {
+                      confetti(1800);
+                      toast("Inbox zero. Nice work 🎉");
+                    }
+                    inbox.reload();
+                    refreshUnread();
+                  }}
+                />
               ))}
             </div>
           )}
