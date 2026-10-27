@@ -4,7 +4,8 @@ import { api } from "../../api";
 import { useApi, useOnFocus } from "../../hooks";
 import { dayLabel, relTime } from "../../dates";
 import { Icon } from "../../components/Icon";
-import { Empty, Sheet, Spinner, painColor, toast } from "../../components/ui";
+import { Empty, Sheet, Spinner, toast } from "../../components/ui";
+import { Grid, f1, pct } from "../../components/Grid";
 import { Kpis } from "./Inbox";
 import { Onboarding } from "./Onboarding";
 
@@ -48,9 +49,7 @@ export function inviteLink(code: string) {
   return `${location.origin}/join/${code}`;
 }
 
-function engColor(n: number) {
-  return n >= 70 ? "var(--accent)" : n >= 45 ? "#e8b33f" : "var(--danger)";
-}
+const avg = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
 
 export function Clients() {
   const nav = useNavigate();
@@ -58,15 +57,10 @@ export function Clients() {
   const [view, setView] = useState<"pipeline" | "table" | "past">("table");
   const [adding, setAdding] = useState<Stage | null>(null);
   const [rev, setRev] = useState(0);
-  const [sort, setSort] = useState<"risk" | "engagement" | "name">("risk");
   useOnFocus(reload);
 
   const riskRank = { high: 0, medium: 1, low: 2 } as const;
-  const active = (data ?? [])
-    .filter((r) => r.stage === "active")
-    .sort((a, b) =>
-      sort === "name" ? a.name.localeCompare(b.name) : sort === "engagement" ? b.engagement - a.engagement : riskRank[a.churn_risk ?? "low"] - riskRank[b.churn_risk ?? "low"] || a.engagement - b.engagement,
-    );
+  const active = (data ?? []).filter((r) => r.stage === "active");
 
   return (
     <div>
@@ -94,48 +88,38 @@ export function Clients() {
       ) : !active.length ? (
         <div className="card pad"><Empty icon="users" title="No active clients">Add a client and send them their invite link.</Empty></div>
       ) : (
-        <div className="card" style={{ overflowX: "auto" }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th><button className="btn sm ghost" style={{ padding: 0, minHeight: 0 }} onClick={() => setSort("name")}>Client</button></th>
-                <th><button className="btn sm ghost" style={{ padding: 0, minHeight: 0 }} onClick={() => setSort("engagement")}>Engagement</button></th>
-                <th>Last 14 days</th>
-                <th>Pain</th>
-                <th>Last active</th>
-                <th><button className="btn sm ghost" style={{ padding: 0, minHeight: 0 }} onClick={() => setSort("risk")}>Churn risk</button></th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map((r) => (
-                <tr key={r.id} className="click" onClick={() => nav(`/clients/${r.id}`)}>
-                  <td>
-                    <div className="row">
-                      <div className="avatar">{r.name[0]}</div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 650 }}>{r.name}</div>
-                        <div className="tiny faint ellipsis" style={{ maxWidth: 260 }}>{r.diagnosis}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ minWidth: 130 }}>
-                    <div className="row" style={{ gap: 8 }}>
-                      <b style={{ width: 26 }}>{r.engagement}</b>
-                      <div className="meter grow"><div style={{ width: `${r.engagement}%`, background: engColor(r.engagement) }} /></div>
-                    </div>
-                  </td>
-                  <td>{r.scheduled_14d ? <><b>{r.completed_14d}</b><span className="faint">/{r.scheduled_14d} done</span></> : <span className="faint">–</span>}</td>
-                  <td>{r.pain_14d !== null ? <span className="chip" style={{ background: painColor(r.pain_14d), color: "#fff" }}>{r.pain_14d.toFixed(1)}</span> : <span className="faint">–</span>}</td>
-                  <td className="small">{r.last_active_at ? relTime(r.last_active_at) : <span className="faint">{r.invite_code ? "Invite pending" : "Never"}</span>}</td>
-                  <td>
-                    {r.churn_risk && <span className={`chip risk-${r.churn_risk}`}>{r.churn_risk[0].toUpperCase() + r.churn_risk.slice(1)}</span>}
-                    {r.risk_reasons.length > 0 && <div className="tiny muted" style={{ marginTop: 4 }}>{r.risk_reasons.join(" · ")}</div>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Grid
+          rows={active}
+          rowKey={(r) => r.id}
+          onRowClick={(r) => nav(`/clients/${r.id}`)}
+          initialSort={{ key: "risk", dir: 1 }}
+          cols={[
+            { key: "name", label: "Client", render: (r) => <b style={{ fontWeight: 500 }}>{r.name}</b>, sort: (r) => r.name },
+            { key: "dx", label: "Diagnosis", render: (r) => <span className="ellipsis" style={{ display: "inline-block", maxWidth: 260, verticalAlign: "bottom" }}>{r.diagnosis ?? ""}</span>, sort: (r) => r.diagnosis },
+            { key: "eng", label: "Eng", num: true, title: "Engagement score, 0–100", render: (r) => r.engagement, sort: (r) => r.engagement, tone: (r) => (r.engagement < 45 ? "bad" : r.engagement < 70 ? "meh" : "") },
+            { key: "adh", label: "Adh 14d", num: true, render: (r) => pct(r.adherence_14d), sort: (r) => r.adherence_14d, tone: (r) => (r.adherence_14d === null ? "" : r.adherence_14d < 0.5 ? "bad" : r.adherence_14d < 0.7 ? "meh" : "") },
+            { key: "done", label: "Done/plan", num: true, render: (r) => (r.scheduled_14d ? `${r.completed_14d}/${r.scheduled_14d}` : "–"), sort: (r) => r.completed_14d },
+            { key: "pain", label: "Pain", num: true, render: (r) => f1(r.pain_14d), sort: (r) => r.pain_14d, tone: (r) => (r.pain_14d !== null && r.pain_14d >= 7 ? "bad" : "") },
+            { key: "quiet", label: "Last active", num: true, render: (r) => (r.last_active_at ? relTime(r.last_active_at) : r.invite_code ? "Invite pending" : "Never"), sort: (r) => r.days_quiet, tone: (r) => (r.days_quiet !== null && r.days_quiet >= 5 ? "bad" : "") },
+            { key: "src", label: "Source", render: (r) => r.source ?? "", sort: (r) => r.source },
+            { key: "rate", label: "$/mo", num: true, render: (r) => (r.monthly_rate ? `$${r.monthly_rate}` : ""), sort: (r) => r.monthly_rate },
+            { key: "risk", label: "Churn risk", render: (r) => (r.churn_risk ? <span className={`tag s-${r.churn_risk === "high" ? "risk" : r.churn_risk === "medium" ? "nudge" : "track"}`}>{r.churn_risk[0].toUpperCase() + r.churn_risk.slice(1)}</span> : ""), sort: (r) => riskRank[r.churn_risk ?? "low"] },
+            { key: "why", label: "Why", render: (r) => <span className="muted">{r.risk_reasons.join(" · ")}</span> },
+          ]}
+          foot={[
+            `${active.length} clients`,
+            "",
+            Math.round(active.reduce((s, r) => s + r.engagement, 0) / active.length),
+            pct(avg(active.flatMap((r) => (r.adherence_14d === null ? [] : [r.adherence_14d])))),
+            `${active.reduce((s, r) => s + r.completed_14d, 0)}/${active.reduce((s, r) => s + r.scheduled_14d, 0)}`,
+            f1(avg(active.flatMap((r) => (r.pain_14d === null ? [] : [r.pain_14d])))),
+            "",
+            "",
+            `$${active.reduce((s, r) => s + (r.monthly_rate ?? 0), 0).toLocaleString()}`,
+            `${active.filter((r) => r.churn_risk === "high").length} high`,
+            "",
+          ]}
+        />
       )}
 
       {adding && <AddClient stage={adding} onClose={() => setAdding(null)} onAdded={() => { reload(); setRev((n) => n + 1); }} />}

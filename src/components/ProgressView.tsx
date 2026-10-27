@@ -61,7 +61,7 @@ export function ProgressView({ patientId }: { patientId: string }) {
       <div className="card pad">
         <h3>Pain after workouts</h3>
         <div className="small muted" style={{ marginBottom: 8 }}>0 is no pain, 10 is the worst.</div>
-        <LineChart min={0} max={10} series={[{ label: "Pain after workout", color: "#e0445a", points: painAfter }]} />
+        <LineChart min={0} max={10} series={[{ label: "Pain after workout", color: "var(--text)", points: painAfter }]} />
       </div>
       <div className="card pad">
         <h3>Workouts per week</h3>

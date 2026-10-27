@@ -1,275 +1,256 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useMemo, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApi, useOnFocus } from "../../hooks";
-import { addDays, dayLabel, greeting, parseYmd, relTime } from "../../dates";
-import { useSession } from "../../session";
-import { Icon } from "../../components/Icon";
-import { Empty, painColor } from "../../components/ui";
+import { addDays, dayLabel, parseYmd } from "../../dates";
+import { Grid, f1, pct, signed, type Col } from "../../components/Grid";
+import { AdherenceHistogram, AdherenceScatter, TrendChart } from "../../components/StatCharts";
+import { clientStats, mean, quantile, summarize, zScore, type ClientStats, type DayRow } from "./stats";
 import type { CrmRow } from "./Clients";
 
-type Day = { date: string; planned: number; done: number; pain_after: number | null };
-type ClientExtra = { days: Day[]; waiting: number; latest: string | null; latest_at: string | null; next_on: string | null; last_on: string | null };
+type ClientExtra = { days: DayRow[]; waiting: number; latest: string | null; latest_at: string | null; next_on: string | null; last_on: string | null };
 type OverviewData = { today: string; from: string; to: string; clients: Record<string, ClientExtra> };
 
 type Status = "risk" | "nudge" | "track" | "new";
-const STATUS: Record<Status, { label: string; className: string }> = {
-  risk: { label: "Needs you", className: "status-risk" },
-  nudge: { label: "Worth a nudge", className: "status-nudge" },
-  track: { label: "On track", className: "status-track" },
-  new: { label: "Getting started", className: "status-new" },
-};
+const STATUS: Record<Status, string> = { risk: "Needs you", nudge: "Nudge", track: "On track", new: "Starting" };
+const RANK: Record<Status, number> = { risk: 0, nudge: 1, new: 2, track: 3 };
 
-type Row = CrmRow & ClientExtra & { status: Status; pain_prev: number | null };
+type Row = CrmRow & ClientExtra & ClientStats & { status: Status; z: number | null };
 
 const EMPTY: ClientExtra = { days: [], waiting: 0, latest: null, latest_at: null, next_on: null, last_on: null };
 
-function statusOf(r: CrmRow & { waiting: number }): Status {
+function statusOf(r: CrmRow): Status {
   if (!r.last_active_at && r.invite_code) return "new";
   if (r.churn_risk === "high") return "risk";
   if (r.churn_risk === "medium") return "nudge";
   return "track";
 }
 
-const RANK: Record<Status, number> = { risk: 0, nudge: 1, new: 2, track: 3 };
+const short = (d: string) => parseYmd(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-/** At a glance: how every active client is doing, who needs a hand, and what's waiting on a reply. */
+/**
+ * The coach's workbook front sheet: practice statistics (this fortnight against the last), one row per
+ * active client with a day-by-day grid, and the charts that show how the practice is spread.
+ */
 export function Overview() {
-  const { me } = useSession();
   const nav = useNavigate();
-  const crm = useApi<(CrmRow & { pain_prev: number | null })[]>("/crm");
+  const crm = useApi<CrmRow[]>("/crm");
   const ov = useApi<OverviewData>("/overview");
   const [filter, setFilter] = useState<Status | "waiting" | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
   useOnFocus(crm.reload);
   useOnFocus(ov.reload);
 
+  const today = ov.data?.today ?? new Date().toISOString().slice(0, 10);
+
   const rows: Row[] = useMemo(() => {
     if (!crm.data) return [];
-    return crm.data
+    const base = crm.data
       .filter((r) => r.stage === "active")
       .map((r) => {
         const extra = ov.data?.clients[r.id] ?? EMPTY;
-        return { ...r, ...extra, status: statusOf({ ...r, waiting: extra.waiting }) };
-      })
-      .sort((a, b) => RANK[a.status] - RANK[b.status] || b.waiting - a.waiting || a.engagement - b.engagement);
-  }, [crm.data, ov.data]);
+        return { ...r, ...extra, ...clientStats(extra.days, today), status: statusOf(r), z: null as number | null };
+      });
+    const s = summarize(base.flatMap((r) => (r.adh14 === null ? [] : [r.adh14])));
+    for (const r of base) r.z = zScore(r.adh14, s);
+    return base.sort((a, b) => RANK[a.status] - RANK[b.status] || (a.adh14 ?? 2) - (b.adh14 ?? 2));
+  }, [crm.data, ov.data, today]);
 
-  const today = ov.data?.today ?? new Date().toISOString().slice(0, 10);
-  const count = (s: Status) => rows.filter((r) => r.status === s).length;
-  const waitingTotal = rows.reduce((n, r) => n + r.waiting, 0);
-  const waitingClients = rows.filter((r) => r.waiting > 0).length;
-  const followUps = (crm.data ?? []).filter((r) => r.stage !== "active" && r.stage !== "churned" && r.follow_up_on && r.follow_up_on <= today);
   const shown = rows.filter((r) => !filter || (filter === "waiting" ? r.waiting > 0 : r.status === filter));
-
-  const loading = !crm.data;
+  const followUps = (crm.data ?? []).filter((r) => r.stage !== "active" && r.stage !== "churned" && r.follow_up_on && r.follow_up_on <= today);
+  const loading = !crm.data || !ov.data;
+  const count = (s: Status) => rows.filter((r) => r.status === s).length;
+  const open = (id: string) => nav(`/clients/${id}`);
 
   return (
-    <div>
-      <header className="page-head overview-head">
+    <div className="ledger">
+      <header className="page-head">
         <div>
-          <h1>{greeting()}, {me.name.split(" ")[0]}</h1>
-          <p className="page-sub">{loading ? " " : summary(rows, waitingTotal)}</p>
+          <h1>Overview</h1>
+          <p className="page-sub num">
+            {parseYmd(today).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} · last 14 days vs prior 14 · {rows.length} active
+          </p>
         </div>
-        <Link to="/clients" className="btn hide-narrow">All clients</Link>
-        <Link to="/account" className="avatar show-narrow" aria-label="Account">{me.name[0]}</Link>
-      </header>
-
-      <div className="status-tiles" role="group" aria-label="Filter clients">
-        <StatusTile tone="risk" n={count("risk")} label="Need you" hint="High churn risk" on={filter === "risk"} onClick={() => setFilter(filter === "risk" ? null : "risk")} loading={loading} />
-        <StatusTile tone="nudge" n={count("nudge")} label="Worth a nudge" hint="One warning sign" on={filter === "nudge"} onClick={() => setFilter(filter === "nudge" ? null : "nudge")} loading={loading} />
-        <StatusTile tone="track" n={count("track")} label="On track" hint="Training as planned" on={filter === "track"} onClick={() => setFilter(filter === "track" ? null : "track")} loading={loading} />
-        <StatusTile
-          tone="brand"
-          n={waitingTotal}
-          label="Awaiting reply"
-          hint={waitingClients ? `From ${waitingClients} client${waitingClients === 1 ? "" : "s"}` : "All caught up"}
-          on={filter === "waiting"}
-          onClick={() => setFilter(filter === "waiting" ? null : "waiting")}
-          loading={loading}
-        />
-      </div>
-
-      <div className="row between section-row">
-        <div className="section-title" style={{ margin: 0 }}>
-          {filter ? (filter === "waiting" ? "Awaiting your reply" : STATUS[filter].label) : "Active clients"} <span className="count">{shown.length}</span>
-        </div>
-        <div className="row tiny faint legend">
-          <span><i className="d done" /> Done</span>
-          <span><i className="d missed" /> Missed</span>
-          <span><i className="d planned" /> Planned</span>
-          {filter && <button className="btn sm ghost" onClick={() => setFilter(null)}>Show all</button>}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="client-grid">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="client-card skeleton" />)}</div>
-      ) : !rows.length ? (
-        <div className="card pad"><Empty icon="users" title="No active clients yet">Add a client from the Clients page and send them their invite link.</Empty></div>
-      ) : !shown.length ? (
-        <div className="card pad"><Empty icon="check" title="Nobody here">{filter === "waiting" ? "Every comment has a reply. Nice." : "No clients in this group right now."}</Empty></div>
-      ) : (
-        <div className="client-grid">
-          {shown.map((r, i) => (
-            <ClientCard key={r.id} r={r} today={today} from={ov.data?.from ?? addDays(today, -13)} index={i} onOpen={() => nav(`/clients/${r.id}`)} />
+        <div className="seg" role="group" aria-label="Filter clients">
+          {([[null, "All", rows.length], ["risk", "Needs you", count("risk")], ["nudge", "Nudge", count("nudge")], ["track", "On track", count("track")], ["waiting", "Waiting", rows.filter((r) => r.waiting).length]] as const).map(([k, l, n]) => (
+            <button key={l} aria-pressed={filter === k} onClick={() => setFilter(k)}>
+              {l} <span className="num">{loading ? "–" : n}</span>
+            </button>
           ))}
         </div>
+      </header>
+
+      {loading ? (
+        <div className="g-loading">Loading…</div>
+      ) : !rows.length ? (
+        <div className="g-loading">No active clients yet. Add one from the Clients sheet and send them their invite link.</div>
+      ) : (
+        <>
+          <Section title="Practice statistics" hint="active clients · Δ is this 14 days minus the prior 14">
+            <PracticeStats rows={rows} />
+          </Section>
+
+          <Section title="Clients × days" hint="red and amber cells are past a threshold · footer counts sessions done per day">
+            <DayGrid rows={shown} today={today} onOpen={open} />
+            <div className="legend">
+              <span><i className="sq done" /> Done</span>
+              <span><i className="sq missed" /> Missed</span>
+              <span><i className="sq planned" /> Planned</span>
+              <span><i className="sq" /> Rest</span>
+            </div>
+          </Section>
+
+          <Charts rows={rows} today={today} picked={picked} onPick={(id) => (picked === id ? open(id) : setPicked(id))} />
+        </>
       )}
 
       {followUps.length > 0 && (
-        <>
-          <div className="section-title">Pipeline follow-ups due</div>
-          <div className="list">
-            {followUps.map((r) => (
-              <Link key={r.id} to={`/clients/${r.id}?tab=profile`} className="list-item">
-                <div className="avatar">{r.name[0]}</div>
-                <div className="grow">
-                  <div style={{ fontWeight: 650 }}>{r.name}</div>
-                  <div className="tiny muted">{r.stage === "lead" ? "Lead" : r.stage === "consult" ? "Consult booked" : "Paused"}{r.source ? ` · ${r.source}` : ""}</div>
-                </div>
-                <span className="chip">Follow up {dayLabel(r.follow_up_on!).toLowerCase()}</span>
-                <Icon name="chev" size={18} />
-              </Link>
-            ))}
-          </div>
-        </>
+        <Section title="Pipeline follow-ups due" hint={`${followUps.length} lead${followUps.length === 1 ? "" : "s"}`}>
+          <Grid
+            rows={followUps}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => nav(`/clients/${r.id}?tab=profile`)}
+            cols={[
+              { key: "name", label: "Name", render: (r) => r.name, sort: (r) => r.name },
+              { key: "stage", label: "Stage", render: (r) => (r.stage === "lead" ? "Lead" : r.stage === "consult" ? "Onboarding" : "Paused"), sort: (r) => r.stage },
+              { key: "src", label: "Source", render: (r) => r.source ?? "", sort: (r) => r.source },
+              { key: "due", label: "Follow up", render: (r) => dayLabel(r.follow_up_on!), sort: (r) => r.follow_up_on, tone: (r) => (r.follow_up_on! < today ? "bad" : "") },
+            ]}
+          />
+        </Section>
       )}
     </div>
   );
 }
 
-function summary(rows: Row[], waiting: number) {
-  if (!rows.length) return "No active clients yet.";
-  const risk = rows.filter((r) => r.status === "risk");
-  const track = rows.filter((r) => r.status === "track").length;
-  const parts: string[] = [];
-  if (risk.length) parts.push(`${names(risk.map((r) => r.name.split(" ")[0]))} need${risk.length === 1 ? "s" : ""} a check-in`);
-  if (waiting) parts.push(`${waiting} comment${waiting === 1 ? "" : "s"} waiting on you`);
-  if (!parts.length) return `All ${rows.length} clients are on track. Enjoy it.`;
-  return parts.join(", and ") + `. ${track} of ${rows.length} on track.`;
-}
-
-function names(list: string[]) {
-  return list.length <= 2 ? list.join(" and ") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
-}
-
-function StatusTile({ tone, n, label, hint, on, onClick, loading }: { tone: string; n: number; label: string; hint: string; on: boolean; onClick: () => void; loading: boolean }) {
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
-    <button className={`status-tile tone-${tone}${on ? " on" : ""}`} aria-pressed={on} onClick={onClick}>
-      <span className="v">{loading ? "–" : n}</span>
-      <span className="l">{label}</span>
-      <span className="h">{hint}</span>
-    </button>
+    <section className="g-section">
+      <div className="g-title">{title} {hint && <span>{hint}</span>}</div>
+      {children}
+    </section>
   );
 }
 
-function ClientCard({ r, today, from, index, onOpen }: { r: Row; today: string; from: string; index: number; onOpen: () => void }) {
-  const byDate = new Map(r.days.map((d) => [d.date, d]));
-  const strip = Array.from({ length: 21 }, (_, i) => addDays(from, i));
-  const pain = r.pain_14d;
-  const trend = pain !== null && r.pain_prev !== null ? pain - r.pain_prev : null;
-  const nothingAhead = !r.next_on || (r.last_on ?? "") < addDays(today, 2);
+type StatRow = { key: string; label: string; cur: number[]; prev: number[] | null; fmt: (v: number | null) => string; dfmt: (v: number | null) => string; worse: 1 | -1 };
 
+function PracticeStats({ rows }: { rows: Row[] }) {
+  const vals = (f: (r: Row) => number | null) => rows.flatMap((r) => { const v = f(r); return v === null ? [] : [v]; });
+  const stats: StatRow[] = [
+    { key: "adh", label: "Adherence, 14 days", cur: vals((r) => r.adh14), prev: vals((r) => r.adhPrev), fmt: pct, dfmt: (v) => (v === null ? "–" : `${signed(v * 100, 0)} pt`), worse: -1 },
+    { key: "pain", label: "Pain after session (0–10)", cur: vals((r) => r.pain14), prev: vals((r) => r.painPrev), fmt: f1, dfmt: signed, worse: 1 },
+    { key: "eng", label: "Engagement score", cur: vals((r) => r.engagement), prev: null, fmt: (v) => (v === null ? "–" : String(Math.round(v))), dfmt: () => "–", worse: -1 },
+    { key: "quiet", label: "Days since last session", cur: vals((r) => r.days_quiet), prev: null, fmt: (v) => (v === null ? "–" : `${f1(v)} d`), dfmt: () => "–", worse: 1 },
+    { key: "wait", label: "Unanswered per client", cur: rows.map((r) => r.waiting), prev: null, fmt: f1, dfmt: () => "–", worse: 1 },
+  ];
+  const delta = (s: StatRow) => (s.prev ? (mean(s.cur) ?? NaN) - (mean(s.prev) ?? NaN) : null);
+  const d = (s: StatRow) => { const v = delta(s); return v === null || Number.isNaN(v) ? null : v; };
+  const cols: Col<StatRow>[] = [
+    { key: "m", label: "Metric", render: (s) => s.label },
+    { key: "mean", label: "Mean", num: true, render: (s) => s.fmt(mean(s.cur)) },
+    { key: "prev", label: "Prior 14 d", num: true, render: (s) => (s.prev ? s.fmt(mean(s.prev)) : "–") },
+    { key: "d", label: "Δ", num: true, render: (s) => s.dfmt(d(s)), tone: (s) => { const v = d(s); const big = s.key === "adh" ? 0.05 : 0.3; return v !== null && v * s.worse > big ? "bad" : ""; } },
+    { key: "med", label: "Median", num: true, render: (s) => s.fmt(quantile(s.cur, 0.5)) },
+    { key: "p25", label: "P25", num: true, render: (s) => s.fmt(quantile(s.cur, 0.25)) },
+    { key: "p75", label: "P75", num: true, render: (s) => s.fmt(quantile(s.cur, 0.75)) },
+    { key: "sd", label: "SD", num: true, render: (s) => { const v = summarize(s.cur).sd; return s.key === "adh" ? (v === null ? "–" : `${Math.round(v * 100)} pt`) : f1(v); } },
+    { key: "n", label: "n", num: true, render: (s) => s.cur.length },
+  ];
+  return <Grid rows={stats} cols={cols} rowKey={(s) => s.key} />;
+}
+
+function DayGrid({ rows, today, onOpen }: { rows: Row[]; today: string; onOpen: (id: string) => void }) {
+  const days = Array.from({ length: 21 }, (_, i) => addDays(today, i - 14));
+  const cell = (r: Row, d: string) => {
+    const x = r.days.find((y) => y.date === d);
+    if (!x || !x.planned) return { state: "rest", x };
+    return { state: x.done >= x.planned ? "done" : d < today ? "missed" : "planned", x };
+  };
+  const cols: Col<Row>[] = [
+    { key: "name", label: "Client", render: (r) => <span className="g-name">{r.name}</span>, sort: (r) => r.name },
+    { key: "status", label: "Status", render: (r) => <span className={`tag s-${r.status}`}>{STATUS[r.status]}</span>, sort: (r) => RANK[r.status] },
+    { key: "adh", label: "Adh 14d", num: true, title: "Sessions done ÷ planned, last 14 days", render: (r) => pct(r.adh14), sort: (r) => r.adh14, tone: (r) => (r.adh14 === null ? "" : r.adh14 < 0.5 ? "bad" : r.adh14 < 0.7 ? "meh" : "") },
+    { key: "dp", label: "Done", num: true, render: (r) => (r.planned14 ? `${r.done14}/${r.planned14}` : "–"), sort: (r) => r.done14 },
+    { key: "z", label: "z", num: true, title: "Adherence against the practice mean, in standard deviations", render: (r) => signed(r.z), sort: (r) => r.z, tone: (r) => (r.z !== null && r.z < -1.5 ? "bad" : "") },
+    { key: "pain", label: "Pain", num: true, title: "Average pain after sessions, last 14 days", render: (r) => f1(r.pain14), sort: (r) => r.pain14, tone: (r) => (r.pain14 !== null && r.pain14 >= 7 ? "bad" : "") },
+    { key: "dpain", label: "ΔPain", num: true, title: "Change against the prior 14 days", render: (r) => signed(r.dPain), sort: (r) => r.dPain, tone: (r) => (r.dPain === null ? "" : r.dPain >= 1 ? "bad" : r.dPain >= 0.5 ? "meh" : "") },
+    { key: "quiet", label: "Quiet", num: true, title: "Days since last activity", render: (r) => (r.days_quiet === null ? "–" : `${r.days_quiet}d`), sort: (r) => r.days_quiet, tone: (r) => (r.days_quiet === null ? "" : r.days_quiet >= 5 ? "bad" : r.days_quiet >= 3 ? "meh" : "") },
+    { key: "wait", label: "Wait", num: true, title: "Comments and messages waiting on your reply", render: (r) => r.waiting || "", sort: (r) => r.waiting, tone: (r) => (r.waiting >= 2 ? "meh" : "") },
+    ...days.map((d): Col<Row> => {
+      const dt = parseYmd(d);
+      return {
+        key: d,
+        label: <>{dt.toLocaleDateString(undefined, { weekday: "narrow" })}<br />{dt.getDate()}</>,
+        className: `g-day${d === today ? " g-today" : ""}`,
+        title: dayLabel(d),
+        render: (r) => {
+          const { state, x } = cell(r, d);
+          return <i className={`sq ${state}`} title={`${short(d)}: ${state}${x?.pain_after != null ? `, pain ${x.pain_after}/10` : ""}`} />;
+        },
+      };
+    }),
+  ];
+  const nums = (f: (r: Row) => number | null) => rows.flatMap((r) => { const v = f(r); return v === null ? [] : [v]; });
+  const foot: ReactNode[] = [
+    `${rows.length} clients`,
+    "",
+    pct(mean(nums((r) => r.adh14))),
+    `${rows.reduce((s, r) => s + r.done14, 0)}/${rows.reduce((s, r) => s + r.planned14, 0)}`,
+    "",
+    f1(mean(nums((r) => r.pain14))),
+    signed(mean(nums((r) => r.dPain))),
+    (() => { const m = quantile(nums((r) => r.days_quiet), 0.5); return m === null ? "–" : `${Math.round(m)}d`; })(),
+    rows.reduce((s, r) => s + r.waiting, 0) || "",
+    ...days.map((d) => {
+      const cs = rows.map((r) => cell(r, d)).filter((c) => c.state !== "rest");
+      if (!cs.length) return "";
+      return d < today ? cs.filter((c) => c.state === "done").length : cs.length;
+    }),
+  ];
+  return <Grid rows={rows} cols={cols} rowKey={(r) => r.id} onRowClick={(r) => onOpen(r.id)} foot={foot} empty="No clients in this group." />;
+}
+
+function Charts({ rows, today, picked, onPick }: { rows: Row[]; today: string; picked: string | null; onPick: (id: string) => void }) {
+  const nWeeks = rows[0]?.weeks.length ?? 8;
+  const labels = Array.from({ length: nWeeks }, (_, i) => short(addDays(today, -7 * (nWeeks - i))));
+  const weekly = Array.from({ length: nWeeks }, (_, i) => {
+    const v = rows.flatMap((r) => (r.weeks[i]?.adherence == null ? [] : [r.weeks[i].adherence!]));
+    return { m: mean(v), lo: quantile(v, 0.25), hi: quantile(v, 0.75) };
+  });
+  const pain = Array.from({ length: nWeeks }, (_, i) => mean(rows.flatMap((r) => (r.weeks[i]?.pain == null ? [] : [r.weeks[i].pain!]))));
+  const adh = rows.flatMap((r) => (r.adh14 === null ? [] : [r.adh14]));
+  const pts = rows.flatMap((r) => (r.adh14 === null || r.dPain === null ? [] : [{ id: r.id, label: r.name.split(" ")[0], x: r.adh14, y: r.dPain, tone: r.status === "risk" ? "risk" as const : r.status === "nudge" ? "nudge" as const : "" as const }]));
+  const band = weekly.every((w) => w.lo !== null && w.hi !== null) ? weekly.map((w) => [w.lo!, w.hi!] as [number, number]) : undefined;
   return (
-    <article
-      className={`client-card ${STATUS[r.status].className}`}
-      style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-      onClick={onOpen}
-      onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && onOpen()}
-      tabIndex={0}
-      aria-label={`${r.name}, ${STATUS[r.status].label}`}
-    >
-      <div className="cc-head">
-        <EngagementRing value={r.engagement} />
-        <div className="grow">
-          <div className="cc-name ellipsis">{r.name}</div>
-          <div className="cc-dx ellipsis">{r.diagnosis || " "}</div>
-        </div>
-        <span className="status-pill">{STATUS[r.status].label}</span>
-      </div>
-
-      <div className="strip" aria-label="Last two weeks and the week ahead">
-        {strip.map((d) => {
-          const day = byDate.get(d);
-          const state = !day ? "rest" : day.done ? "done" : d < today ? "missed" : "planned";
-          return (
-            <span
-              key={d}
-              className={`d ${state}${d === today ? " today" : ""}`}
-              title={`${dayLabel(d)}: ${state === "rest" ? "rest day" : state}${day?.done && day.pain_after !== null ? ` · pain ${day.pain_after}/10` : ""}`}
-            />
-          );
-        })}
-      </div>
-      <div className="strip-labels tiny faint">
-        <span>{parseYmd(from).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-        <span>Today</span>
-        <span>Next week</span>
-      </div>
-
-      <div className="cc-stats">
-        <div>
-          <span className="k">Done</span>
-          <span className="v">{r.scheduled_14d ? <span>{r.completed_14d}<span className="faint">/{r.scheduled_14d}</span></span> : <span className="faint">–</span>}</span>
-        </div>
-        <div>
-          <span className="k">Pain</span>
-          <span className="v">
-            {pain !== null ? (
-              <>
-                <span className="pain-dot" style={{ background: painColor(pain) }} />
-                {pain.toFixed(1)}
-                {trend !== null && Math.abs(trend) >= 0.5 && (
-                  <span className={`trend ${trend > 0 ? "up" : "down"}`} title={`${trend > 0 ? "Up" : "Down"} ${Math.abs(trend).toFixed(1)} vs the two weeks before`}>
-                    {trend > 0 ? "▲" : "▼"}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="faint">–</span>
-            )}
-          </span>
-        </div>
-        <div>
-          <span className="k">Active</span>
-          <span className="v small">{r.last_active_at ? relTime(r.last_active_at) : <span className="faint">{r.invite_code ? "Invite sent" : "Never"}</span>}</span>
-        </div>
-      </div>
-
-      {r.risk_reasons.length > 0 && (
-        <div className="cc-reasons">
-          {r.risk_reasons.map((x) => <span key={x} className="reason">{x}</span>)}
-        </div>
-      )}
-
-      {r.waiting > 0 && r.latest && (
-        <Link to="/inbox" className="cc-quote" onClick={(e) => e.stopPropagation()}>
-          <Icon name="messages" size={14} />
-          <span className="grow ellipsis">“{r.latest}”</span>
-          {r.waiting > 1 && <span className="chip brand tiny">+{r.waiting - 1}</span>}
-          <span className="tiny faint">{r.latest_at ? relTime(r.latest_at) : ""}</span>
-        </Link>
-      )}
-
-      <div className="cc-foot">
-        {nothingAhead ? (
-          <span className="cc-warn"><Icon name="calendar" size={14} /> {r.next_on ? `Program ends ${dayLabel(r.last_on!).toLowerCase()}` : "Nothing planned"}</span>
-        ) : (
-          <span className="faint"><Icon name="calendar" size={14} /> Next {dayLabel(r.next_on!).toLowerCase()}</span>
-        )}
-        <span className="cc-open">{nothingAhead ? "Plan week" : "Open"} <Icon name="chev" size={14} /></span>
-      </div>
-    </article>
+    <div className="g-charts">
+      <figure className="g-panel">
+        <figcaption><b>Weekly adherence</b><span>mean · band is P25–P75</span></figcaption>
+        <TrendChart series={[weekly.map((w) => w.m)]} band={band} target={0.8} min={0} max={1} fmt={(v) => `${Math.round(v * 100)}%`} labels={labels} width={380} />
+      </figure>
+      <figure className="g-panel">
+        <figcaption><b>Average pain after sessions</b><span>0–10 · lower is better</span></figcaption>
+        <TrendChart series={[pain]} min={0} max={10} fmt={(v) => v.toFixed(v % 1 ? 1 : 0)} labels={labels} width={380} />
+      </figure>
+      <figure className="g-panel">
+        <figcaption><b>Adherence distribution</b><span>clients per 10% · n = {adh.length}</span></figcaption>
+        <AdherenceHistogram values={adh} />
+      </figure>
+      <figure className="g-panel">
+        <figcaption><b>Adherence vs Δ pain</b><span>{pts.length ? "click a dot, click again to open" : "needs two weeks of pain scores"}</span></figcaption>
+        <AdherenceScatter points={pts} selected={picked} onPick={onPick} />
+      </figure>
+    </div>
   );
 }
 
 export function EngagementRing({ value }: { value: number }) {
   const r = 17;
   const c = 2 * Math.PI * r;
-  const color = value >= 70 ? "var(--accent)" : value >= 45 ? "var(--warn)" : "var(--danger)";
+  const color = value >= 45 ? "var(--text)" : "var(--danger)";
   return (
     <div className="cc-ring" title={`Engagement ${value}/100`}>
       <svg viewBox="0 0 40 40" width="40" height="40">
         <circle cx="20" cy="20" r={r} fill="none" stroke="var(--surface-2)" strokeWidth="4" />
-        <circle cx="20" cy="20" r={r} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(c * value) / 100} ${c}`} transform="rotate(-90 20 20)" />
+        <circle cx="20" cy="20" r={r} fill="none" stroke={color} strokeWidth="4" strokeDasharray={`${(c * value) / 100} ${c}`} transform="rotate(-90 20 20)" />
       </svg>
       <span>{value}</span>
     </div>
