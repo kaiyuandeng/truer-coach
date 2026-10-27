@@ -59,7 +59,8 @@ export function TopBar({ title, back, right, wide }: { title?: ReactNode; back?:
   );
 }
 
-const PAIN_COLORS = ["#12b5a0", "#3dbb8f", "#6cc17a", "#9cc565", "#c9c451", "#e8b33f", "#ef9a35", "#ef7d33", "#e8603a", "#e04646", "#c9304f"];
+/** Grey while pain is low, amber in the middle, red when it is high: color only where it means something. */
+const PAIN_COLORS = ["#62665f", "#62665f", "#62665f", "#62665f", "#9a6200", "#9a6200", "#9a6200", "#b8342a", "#b8342a", "#b8342a", "#b8342a"];
 
 export function painColor(n: number) {
   return PAIN_COLORS[Math.max(0, Math.min(10, Math.round(n)))];

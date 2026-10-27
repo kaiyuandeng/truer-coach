@@ -4,7 +4,8 @@ import { addDays } from "./util";
 import { requireTherapist } from "./auth";
 
 /**
- * Coach overview: for every active client, a day-by-day strip (two weeks back, one week ahead),
+ * Coach overview: for every active client, their planned and done sessions day by day (eight weeks back,
+ * one week ahead) so the page can work out adherence and pain trends,
  * how many of their comments and messages are still waiting on a reply, and the next planned day.
  * The engagement and churn numbers come from /crm; the page joins the two by client id.
  */
@@ -13,7 +14,7 @@ export const overview = new Hono<AppEnv>();
 overview.get("/overview", async (c) => {
   const user = requireTherapist(c);
   const t = new Date().toISOString().slice(0, 10);
-  const from = addDays(t, -13);
+  const from = addDays(t, -56);
   const to = addDays(t, 6);
 
   const [days, waiting, next] = await c.env.DB.batch([
