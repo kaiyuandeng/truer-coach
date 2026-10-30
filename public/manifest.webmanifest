@@ -1,6 +1,6 @@
 {
-  "name": "Coach Evan",
-  "short_name": "Coach Evan",
+  "name": "TruerCoach",
+  "short_name": "TruerCoach",
   "description": "Your physical therapy program between visits.",
   "start_url": "/",
   "display": "standalone",

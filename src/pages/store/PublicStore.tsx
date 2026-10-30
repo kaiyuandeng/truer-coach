@@ -15,7 +15,7 @@ export function PublicStore({ onSignedIn, coachView }: { onSignedIn?: () => void
     <div className="store-page">
       <header className="store-head">
         <div className="store-head-inner">
-          <Link to={`/store/${coachId}`} className="brand-mark" style={{ padding: 0, color: "var(--text)" }}>Coach <span>Evan</span></Link>
+          <Link to={`/store/${coachId}`} className="brand-mark" style={{ padding: 0, color: "var(--text)" }}>Truer<span>Coach</span></Link>
           {coachView ? (
             <Link className="btn sm" to="/courses"><Icon name="back" size={16} /> Back to your store</Link>
           ) : !onSignedIn ? null : (
