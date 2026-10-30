@@ -1,11 +1,11 @@
 /* Coach dashboard styles, "Ledger": the app as a workbook. Flat, gridded, numbers first; color only for signal.
    Loaded with the coach chunk only. */
 
-.coach-shell { --radius: 2px; --radius-sm: 2px; --shadow: none; font-size: 13px; }
-.coach-shell h1, .coach-shell h2 { font-family: inherit; text-transform: none; letter-spacing: 0; font-weight: 600; }
-.coach-main h1 { font-size: 17px; line-height: 1.3; }
-.coach-shell h2 { font-size: 15px; }
-.coach-shell h3 { font-size: 14px; font-weight: 600; }
+.coach-shell { --radius: 3px; --radius-sm: 3px; --shadow: none; font-size: 13px; }
+.coach-shell h1, .coach-shell h2 { font-family: var(--display); text-transform: none; letter-spacing: 0.01em; font-weight: 500; }
+.coach-main h1 { font-size: 26px; line-height: 1.2; }
+.coach-shell h2 { font-size: 19px; }
+.coach-shell h3 { font-size: 14px; font-weight: 500; }
 .coach-shell .small { font-size: 13px; }
 .coach-shell .tiny { font-size: 11.5px; }
 
@@ -16,7 +16,7 @@
   position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
   padding: calc(6px + var(--safe-top)) 16px 6px; background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.wordmark { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.14em; font-size: 13px; color: var(--text); }
+.wordmark { font-size: 15px; }
 .ledger-account { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 13px; }
 .ledger-account .avatar { width: 24px; height: 24px; font-size: 11px; border-radius: 2px; }
 .coach-main { flex: 1; padding: 16px 20px 56px; }
@@ -27,7 +27,7 @@
 }
 .sheet-tabs a { padding: 6px 16px; color: var(--text-2); border-right: 1px solid var(--line); white-space: nowrap; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
 .sheet-tabs a:hover { color: var(--text); background: var(--surface); }
-.sheet-tabs a.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: inset 0 2px 0 var(--text); }
+.sheet-tabs a.active { background: var(--surface); color: var(--brand); font-weight: 500; box-shadow: inset 0 2px 0 var(--brand); }
 .sheet-badge { font-family: var(--mono); font-size: 11px; color: var(--danger); }
 @media (max-width: 899px) {
   .sheet-tabs { display: none; }
@@ -51,7 +51,7 @@
 .coach-shell .section-title { font-size: 11px; font-weight: 500; letter-spacing: 0.07em; color: var(--text-2); margin: 18px 0 6px; }
 .coach-shell .btn { border-radius: 2px; min-height: 30px; padding: 4px 12px; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: var(--surface); text-transform: none; letter-spacing: 0; }
 .coach-shell .btn:active { transform: none; }
-.coach-shell .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.coach-shell .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); text-transform: uppercase; letter-spacing: 0.14em; font-size: 11.5px; }
 .coach-shell .btn.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
 .coach-shell .btn.danger { border-color: var(--danger-soft); }
 .coach-shell .btn.sm { min-height: 26px; padding: 2px 8px; font-size: 12px; }
@@ -64,7 +64,7 @@
 .coach-shell .segmented { border-radius: 2px; padding: 0; background: transparent; border: 1px solid var(--line); }
 .coach-shell .segmented button { border-radius: 0; font-size: 12.5px; padding: 5px 10px; text-transform: none; letter-spacing: 0; font-weight: 500; }
 .coach-shell .segmented button + button { border-left: 1px solid var(--line); }
-.coach-shell .segmented button.on { background: var(--text); color: var(--bg); box-shadow: none; }
+.coach-shell .segmented button.on { background: var(--brand); color: var(--brand-ink); box-shadow: none; }
 .coach-shell .chip { border-radius: 2px; padding: 1px 6px; font-size: 11.5px; font-weight: 500; }
 .coach-shell .avatar { border-radius: 2px; width: 28px; height: 28px; font-size: 12px; }
 .coach-shell .kpis { gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin-bottom: 14px; }
@@ -97,7 +97,7 @@ table.g { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .g .rn { background: var(--surface-2); color: var(--text-3); text-align: right; font-family: var(--mono); font-size: 10.5px; width: 1%; }
 .g tr.click { cursor: pointer; }
 .g tr.click:hover td:not(.rn), .g tr.on td:not(.rn) { background: var(--brand-soft); }
-.g tr.on td.rn { background: var(--text); color: var(--bg); }
+.g tr.on td.rn { background: var(--brand); color: var(--brand-ink); }
 .g tfoot td { background: var(--surface-2); font-weight: 500; border-top: 2px solid var(--text-3); font-family: var(--mono); font-size: 11.5px; }
 .g td.bad { background: var(--danger-soft); color: var(--danger); }
 .g td.meh { background: var(--warn-soft); color: var(--warn); }
@@ -107,7 +107,7 @@ table.g { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .g .g-name { font-weight: 500; }
 .g .g-empty { color: var(--text-3); text-align: center; padding: 14px; }
 .sq { display: inline-block; width: 10px; height: 10px; vertical-align: middle; }
-.sq.done { background: var(--text); }
+.sq.done { background: var(--brand); }
 .sq.missed { background: var(--danger); height: 3px; }
 .sq.planned { box-shadow: inset 0 0 0 1px var(--text-3); }
 .tag { font-size: 11px; padding: 0 5px; border: 1px solid currentColor; border-radius: 2px; line-height: 16px; display: inline-block; }
@@ -118,7 +118,7 @@ table.g { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .seg { display: inline-flex; border: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
 .seg button { border: 0; background: transparent; padding: 4px 10px; cursor: pointer; font-size: 12.5px; color: var(--text-2); }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
 .seg .num { margin-left: 3px; }
 
 .g-section { margin-bottom: 18px; min-width: 0; }
@@ -140,17 +140,17 @@ svg.ch { display: block; width: 100%; height: auto; overflow: visible; }
 svg.ch text { fill: var(--text-3); font-family: var(--mono); font-size: 10px; }
 svg.ch .gl { stroke: var(--line); fill: none; }
 svg.ch .ax { stroke: var(--text-3); fill: none; }
-svg.ch .ln { stroke: var(--text); stroke-width: 1.6; fill: none; }
+svg.ch .ln { stroke: var(--brand); stroke-width: 1.6; fill: none; }
 svg.ch .ln2 { stroke: var(--text-3); stroke-width: 1.2; stroke-dasharray: 3 3; fill: none; }
 svg.ch .band { fill: var(--surface-2); }
-svg.ch .bx { fill: var(--text); }
+svg.ch .bx { fill: var(--brand); }
 svg.ch .bx.lo { fill: var(--danger); }
 svg.ch .bx.mid { fill: var(--warn); }
 svg.ch .tgt { stroke: var(--text-2); stroke-dasharray: 4 3; fill: none; }
 svg.ch .tgt-l { fill: var(--text-2); }
-svg.ch .end { fill: var(--text); }
+svg.ch .end { fill: var(--brand); }
 svg.ch .end-l { fill: var(--text); }
-svg.ch .dot { fill: var(--text); stroke: var(--surface); stroke-width: 1; cursor: pointer; }
+svg.ch .dot { fill: var(--brand); stroke: var(--surface); stroke-width: 1; cursor: pointer; }
 svg.ch .dot.r { fill: var(--danger); }
 svg.ch .dot.w { fill: var(--warn); }
 svg.ch .dot.on { stroke: var(--text); stroke-width: 2.5; }

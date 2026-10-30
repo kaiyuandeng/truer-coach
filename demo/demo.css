@@ -4,13 +4,13 @@
   padding: 8px 16px;
   background: var(--surface); color: var(--text);
   border-bottom: 1px solid var(--line);
-  font: 500 14px/1.2 system-ui, sans-serif;
+  font: 500 13px/1.2 var(--sans);
 }
-.demo-tag { font-weight: 700; letter-spacing: 0.02em; }
+.demo-tag { font-family: var(--display); font-weight: 500; text-transform: uppercase; letter-spacing: 0.24em; }
 .demo-grow { flex: 1; }
 .demo-seg { display: inline-flex; border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 999px; overflow: hidden; }
 .demo-seg button { border: 0; background: transparent; color: inherit; padding: 6px 14px; font: inherit; cursor: pointer; }
-.demo-seg button[aria-selected="true"] { background: var(--brand); color: #fff; }
+.demo-seg button[aria-selected="true"] { background: var(--brand); color: var(--brand-ink); }
 .demo-bar select, .demo-reset {
   font: inherit; color: inherit; background: transparent;
   border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 999px; padding: 5px 12px; cursor: pointer;

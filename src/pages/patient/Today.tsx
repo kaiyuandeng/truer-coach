@@ -15,13 +15,13 @@ export function Ring({ done, total, size = 64 }: { done: number; total: number; 
   return (
     <div className="ring" style={{ width: size, height: size }}>
       <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgb(255 255 255 / 25%)" strokeWidth={7} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeOpacity={0.25} strokeWidth={7} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#fff"
+          stroke="currentColor"
           strokeWidth={7}
           strokeLinecap="round"
           strokeDasharray={c}
