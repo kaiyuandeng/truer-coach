@@ -47,4 +47,6 @@ Photos and videos go to KV (up to 95 MB per file, stored in 20 MB chunks). R2 is
 
 ## Demo build (no backend)
 
+Live at https://kaiyuandeng.github.io/truer-coach/ (rebuilt on every push to `main` by `.github/workflows/demo-pages.yml`).
+
 `npm run build:demo` writes `demo/dist/index.html`, one self-contained file with the whole app. The real worker runs inside the page on SQLite compiled to WebAssembly (sql.js) with the same migrations and seeded demo data as `/demo/coach`, so every screen and every change works with no server. A bar at the top switches between the coach view and each demo client, and "Reset data" reseeds. Uploads are kept in memory, and everything resets when the page reloads.
