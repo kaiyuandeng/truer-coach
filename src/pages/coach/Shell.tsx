@@ -16,7 +16,7 @@ export function CoachShell() {
   return (
     <div className="coach-shell">
       <header className="ledger-bar">
-        <span className="wordmark">RehabLoop</span>
+        <span className="wordmark">Coach Evan</span>
         <span className="grow" />
         <NavLink to="/account" className="ledger-account" title="Account">
           <span className="avatar">{me.name[0]}</span>

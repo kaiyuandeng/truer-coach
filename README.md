@@ -1,4 +1,4 @@
-# RehabLoop
+# Coach Evan
 
 A TrueCoach-style app for a physical therapist and their clients. The client opens it, sees the workout the coach loaded for today, marks exercises done (with an optional note, pain score, photo or video), comments, and gets confetti at the end. The coach builds weeks on a drag-and-drop board, keeps saved workouts and multi-week programs, tracks clients in a small CRM, and replies to comments from an inbox.
 
