@@ -8,7 +8,7 @@ function Brand() {
   return (
     <div className="center" style={{ marginBottom: 20 }}>
       <div className="brand-mark" style={{ fontSize: 26, padding: 0 }}>
-        Coach <span>Evan</span>
+        Truer<span>Coach</span>
       </div>
       <div className="muted small">Your physical therapy, between visits.</div>
     </div>
